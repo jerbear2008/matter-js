@@ -1,10 +1,9 @@
 /**
 * The `Matter.Runner` module is an optional utility which provides a game loop, 
-* that handles updating and rendering a `Matter.Engine` for you within a browser.
-* It is intended for demo and testing purposes, but may be adequate for simple games.
+* that handles continuously updating a `Matter.Engine` for you within a browser.
+* It is intended for development and debugging purposes, but may also be suitable for simple games.
 * If you are using your own game loop instead, then you do not need the `Matter.Runner` module.
 * Instead just call `Engine.update(engine, delta)` in your own loop.
-* Note that the method `Engine.run` is an alias for `Runner.run`.
 *
 * See the included usage [examples](https://github.com/liabru/matter-js/tree/master/examples).
 *
@@ -26,11 +25,24 @@ var Common = require('./Common');
 
     if (typeof window !== 'undefined') {
         _requestAnimationFrame = window.requestAnimationFrame || window.webkitRequestAnimationFrame
-                                      || window.mozRequestAnimationFrame || window.msRequestAnimationFrame 
-                                      || function(callback){ window.setTimeout(function() { callback(Common.now()); }, 1000 / 60); };
+                                      || window.mozRequestAnimationFrame || window.msRequestAnimationFrame;
    
         _cancelAnimationFrame = window.cancelAnimationFrame || window.mozCancelAnimationFrame 
                                       || window.webkitCancelAnimationFrame || window.msCancelAnimationFrame;
+    }
+
+    if (!_requestAnimationFrame) {
+        var _frameTimeout;
+
+        _requestAnimationFrame = function(callback){ 
+            _frameTimeout = setTimeout(function() { 
+                callback(Common.now()); 
+            }, 1000 / 60);
+        };
+
+        _cancelAnimationFrame = function() {
+            clearTimeout(_frameTimeout);
+        };
     }
 
     /**
@@ -41,13 +53,11 @@ var Common = require('./Common');
     Runner.create = function(options) {
         var defaults = {
             fps: 60,
-            correction: 1,
             deltaSampleSize: 60,
             counterTimestamp: 0,
             frameCounter: 0,
             deltaHistory: [],
             timePrev: null,
-            timeScalePrev: 1,
             frameRequestId: null,
             isFixed: false,
             enabled: true
@@ -75,8 +85,8 @@ var Common = require('./Common');
             runner = Runner.create();
         }
 
-        (function render(time){
-            runner.frameRequestId = _requestAnimationFrame(render);
+        (function run(time){
+            runner.frameRequestId = _requestAnimationFrame(run);
 
             if (time && runner.enabled) {
                 Runner.tick(runner, engine, time);
@@ -89,7 +99,6 @@ var Common = require('./Common');
     /**
      * A game loop utility that updates the engine and renderer by one step (a 'tick').
      * Features delta smoothing, time correction and fixed or dynamic timing.
-     * Triggers `beforeTick`, `tick` and `afterTick` events on the engine.
      * Consider just `Engine.update(engine, delta)` if you're using your own loop.
      * @method tick
      * @param {runner} runner
@@ -98,16 +107,7 @@ var Common = require('./Common');
      */
     Runner.tick = function(runner, engine, time) {
         var timing = engine.timing,
-            correction = 1,
             delta;
-
-        // create an event object
-        var event = {
-            timestamp: timing.timestamp
-        };
-
-        Events.trigger(runner, 'beforeTick', event);
-        Events.trigger(engine, 'beforeTick', event); // @deprecated
 
         if (runner.isFixed) {
             // fixed timestep
@@ -121,27 +121,21 @@ var Common = require('./Common');
             runner.deltaHistory.push(delta);
             runner.deltaHistory = runner.deltaHistory.slice(-runner.deltaSampleSize);
             delta = Math.min.apply(null, runner.deltaHistory);
-            
+
             // limit delta
             delta = delta < runner.deltaMin ? runner.deltaMin : delta;
             delta = delta > runner.deltaMax ? runner.deltaMax : delta;
-
-            // correction for delta
-            correction = delta / runner.delta;
 
             // update engine timing object
             runner.delta = delta;
         }
 
-        // time correction for time scaling
-        if (runner.timeScalePrev !== 0)
-            correction *= timing.timeScale / runner.timeScalePrev;
+        // create an event object
+        var event = {
+            timestamp: timing.timestamp
+        };
 
-        if (timing.timeScale === 0)
-            correction = 0;
-
-        runner.timeScalePrev = timing.timeScale;
-        runner.correction = correction;
+        Events.trigger(runner, 'beforeTick', event);
 
         // fps counter
         runner.frameCounter += 1;
@@ -152,39 +146,20 @@ var Common = require('./Common');
         }
 
         Events.trigger(runner, 'tick', event);
-        Events.trigger(engine, 'tick', event); // @deprecated
-
-        // if world has been modified, clear the render scene graph
-        if (engine.world.isModified 
-            && engine.render
-            && engine.render.controller
-            && engine.render.controller.clear) {
-            engine.render.controller.clear(engine.render);
-        }
 
         // update
         Events.trigger(runner, 'beforeUpdate', event);
-        Engine.update(engine, delta, correction);
+
+        Engine.update(engine, delta);
+
         Events.trigger(runner, 'afterUpdate', event);
 
-        // render
-        if (engine.render && engine.render.controller) {
-            Events.trigger(runner, 'beforeRender', event);
-            Events.trigger(engine, 'beforeRender', event); // @deprecated
-
-            engine.render.controller.world(engine);
-
-            Events.trigger(runner, 'afterRender', event);
-            Events.trigger(engine, 'afterRender', event); // @deprecated
-        }
-
         Events.trigger(runner, 'afterTick', event);
-        Events.trigger(engine, 'afterTick', event); // @deprecated
     };
 
     /**
      * Ends execution of `Runner.run` on the given `runner`, by canceling the animation frame request event loop.
-     * If you wish to only temporarily pause the engine, see `engine.enabled` instead.
+     * If you wish to only temporarily pause the runner, see `runner.enabled` instead.
      * @method stop
      * @param {runner} runner
      */
@@ -252,26 +227,6 @@ var Common = require('./Common');
     * Fired after update
     *
     * @event afterUpdate
-    * @param {} event An event object
-    * @param {number} event.timestamp The engine.timing.timestamp of the event
-    * @param {} event.source The source object of the event
-    * @param {} event.name The name of the event
-    */
-
-    /**
-    * Fired before rendering
-    *
-    * @event beforeRender
-    * @param {} event An event object
-    * @param {number} event.timestamp The engine.timing.timestamp of the event
-    * @param {} event.source The source object of the event
-    * @param {} event.name The name of the event
-    */
-
-    /**
-    * Fired after rendering
-    *
-    * @event afterRender
     * @param {} event An event object
     * @param {number} event.timestamp The engine.timing.timestamp of the event
     * @param {} event.source The source object of the event

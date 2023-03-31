@@ -1,11 +1,7 @@
 /**
-* The `Matter.Render` module is the default `render.controller` used by a `Matter.Engine`.
-* This renderer is HTML5 canvas based and supports a number of drawing options including sprites and viewports.
-*
-* It is possible develop a custom renderer module based on `Matter.Render` and pass an instance of it to `Engine.create` via `options.render`.
-* A minimal custom renderer object must define at least three functions: `create`, `clear` and `world` (see `Matter.Render`).
-*
-* See also `Matter.RenderPixi` for an alternate WebGL, scene-graph based renderer.
+* The `Matter.Render` module is a simple canvas based renderer for visualising instances of `Matter.Engine`.
+* It is intended for development and debugging purposes, but may also be suitable for simple games.
+* It includes a number of drawing options including wireframe, vector with support for sprites and viewports.
 *
 * @class Render
 */
@@ -14,15 +10,31 @@ var Render = {};
 
 module.exports = Render;
 
+var Body = require('../body/Body');
 var Common = require('../core/Common');
 var Composite = require('../body/Composite');
 var Bounds = require('../geometry/Bounds');
 var Events = require('../core/Events');
-var Grid = require('../collision/Grid');
 var Vector = require('../geometry/Vector');
+var Mouse = require('../core/Mouse');
 
 (function() {
-    
+
+    var _requestAnimationFrame,
+        _cancelAnimationFrame;
+
+    if (typeof window !== 'undefined') {
+        _requestAnimationFrame = window.requestAnimationFrame || window.webkitRequestAnimationFrame
+                                      || window.mozRequestAnimationFrame || window.msRequestAnimationFrame
+                                      || function(callback){ window.setTimeout(function() { callback(Common.now()); }, 1000 / 60); };
+
+        _cancelAnimationFrame = window.cancelAnimationFrame || window.mozCancelAnimationFrame
+                                      || window.webkitCancelAnimationFrame || window.msCancelAnimationFrame;
+    }
+
+    Render._goodFps = 30;
+    Render._goodDelta = 1000 / 60;
+
     /**
      * Creates a new renderer. The options parameter is an object that specifies any properties you wish to override the defaults.
      * All properties have default values, and many are pre-calculated automatically based on other properties.
@@ -33,22 +45,38 @@ var Vector = require('../geometry/Vector');
      */
     Render.create = function(options) {
         var defaults = {
-            controller: Render,
+            engine: null,
             element: null,
             canvas: null,
             mouse: null,
+            frameRequestId: null,
+            timing: {
+                historySize: 60,
+                delta: 0,
+                deltaHistory: [],
+                lastTime: 0,
+                lastTimestamp: 0,
+                lastElapsed: 0,
+                timestampElapsed: 0,
+                timestampElapsedHistory: [],
+                engineDeltaHistory: [],
+                engineElapsedHistory: [],
+                elapsedHistory: []
+            },
             options: {
                 width: 800,
                 height: 600,
                 pixelRatio: 1,
-                background: '#fafafa',
-                wireframeBackground: '#222',
-                hasBounds: false,
+                background: '#14151f',
+                wireframeBackground: '#14151f',
+                wireframeStrokeStyle: '#bbb',
+                hasBounds: !!options.bounds,
                 enabled: true,
                 wireframes: true,
                 showSleeping: true,
                 showDebug: false,
-                showBroadphase: false,
+                showStats: false,
+                showPerformance: false,
                 showBounds: false,
                 showVelocity: false,
                 showCollisions: false,
@@ -57,7 +85,6 @@ var Vector = require('../geometry/Vector');
                 showPositions: false,
                 showAngleIndicator: false,
                 showIds: false,
-                showShadows: false,
                 showVertexNumbers: false,
                 showConvexHulls: false,
                 showInternalEdges: false,
@@ -72,20 +99,26 @@ var Vector = require('../geometry/Vector');
             render.canvas.height = render.options.height || render.canvas.height;
         }
 
+        render.mouse = options.mouse;
+        render.engine = options.engine;
         render.canvas = render.canvas || _createCanvas(render.options.width, render.options.height);
         render.context = render.canvas.getContext('2d');
         render.textures = {};
 
-        render.bounds = render.bounds || { 
-            min: { 
+        render.bounds = render.bounds || {
+            min: {
                 x: 0,
                 y: 0
-            }, 
-            max: { 
+            },
+            max: {
                 x: render.canvas.width,
                 y: render.canvas.height
             }
         };
+
+        // for temporary back compatibility only
+        render.controller = Render;
+        render.options.showBroadphase = false;
 
         if (render.options.pixelRatio !== 1) {
             Render.setPixelRatio(render, render.options.pixelRatio);
@@ -93,11 +126,41 @@ var Vector = require('../geometry/Vector');
 
         if (Common.isElement(render.element)) {
             render.element.appendChild(render.canvas);
-        } else {
-            Common.log('Render.create: options.element was undefined, render.canvas was created but not appended', 'warn');
         }
 
         return render;
+    };
+
+    /**
+     * Continuously updates the render canvas on the `requestAnimationFrame` event.
+     * @method run
+     * @param {render} render
+     */
+    Render.run = function(render) {
+        (function loop(time){
+            render.frameRequestId = _requestAnimationFrame(loop);
+            
+            _updateTiming(render, time);
+
+            Render.world(render, time);
+
+            if (render.options.showStats || render.options.showDebug) {
+                Render.stats(render, render.context, time);
+            }
+
+            if (render.options.showPerformance || render.options.showDebug) {
+                Render.performance(render, render.context, time);
+            }
+        })();
+    };
+
+    /**
+     * Ends execution of `Render.run` on the given `render`, by canceling the animation frame request event loop.
+     * @method stop
+     * @param {render} render
+     */
+    Render.stop = function(render) {
+        _cancelAnimationFrame(render.frameRequestId);
     };
 
     /**
@@ -121,22 +184,180 @@ var Vector = require('../geometry/Vector');
         canvas.height = options.height * pixelRatio;
         canvas.style.width = options.width + 'px';
         canvas.style.height = options.height + 'px';
-        render.context.scale(pixelRatio, pixelRatio);
+    };
+
+    /**
+     * Sets the render `width` and `height`.
+     * 
+     * Updates the canvas accounting for `render.options.pixelRatio`.  
+     * 
+     * Updates the bottom right render bound `render.bounds.max` relative to the provided `width` and `height`.
+     * The top left render bound `render.bounds.min` isn't changed.
+     * 
+     * Follow this call with `Render.lookAt` if you need to change the render bounds.
+     * 
+     * See also `Render.setPixelRatio`.
+     * @method setSize
+     * @param {render} render
+     * @param {number} width The width (in CSS pixels)
+     * @param {number} height The height (in CSS pixels)
+     */
+    Render.setSize = function(render, width, height) {
+        render.options.width = width;
+        render.options.height = height;
+        render.bounds.max.x = render.bounds.min.x + width;
+        render.bounds.max.y = render.bounds.min.y + height;
+
+        if (render.options.pixelRatio !== 1) {
+            Render.setPixelRatio(render, render.options.pixelRatio);
+        } else {
+            render.canvas.width = width;
+            render.canvas.height = height;
+        }
+    };
+
+    /**
+     * Positions and sizes the viewport around the given object bounds.
+     * Objects must have at least one of the following properties:
+     * - `object.bounds`
+     * - `object.position`
+     * - `object.min` and `object.max`
+     * - `object.x` and `object.y`
+     * @method lookAt
+     * @param {render} render
+     * @param {object[]} objects
+     * @param {vector} [padding]
+     * @param {bool} [center=true]
+     */
+    Render.lookAt = function(render, objects, padding, center) {
+        center = typeof center !== 'undefined' ? center : true;
+        objects = Common.isArray(objects) ? objects : [objects];
+        padding = padding || {
+            x: 0,
+            y: 0
+        };
+
+        // find bounds of all objects
+        var bounds = {
+            min: { x: Infinity, y: Infinity },
+            max: { x: -Infinity, y: -Infinity }
+        };
+
+        for (var i = 0; i < objects.length; i += 1) {
+            var object = objects[i],
+                min = object.bounds ? object.bounds.min : (object.min || object.position || object),
+                max = object.bounds ? object.bounds.max : (object.max || object.position || object);
+
+            if (min && max) {
+                if (min.x < bounds.min.x)
+                    bounds.min.x = min.x;
+
+                if (max.x > bounds.max.x)
+                    bounds.max.x = max.x;
+
+                if (min.y < bounds.min.y)
+                    bounds.min.y = min.y;
+
+                if (max.y > bounds.max.y)
+                    bounds.max.y = max.y;
+            }
+        }
+
+        // find ratios
+        var width = (bounds.max.x - bounds.min.x) + 2 * padding.x,
+            height = (bounds.max.y - bounds.min.y) + 2 * padding.y,
+            viewHeight = render.canvas.height,
+            viewWidth = render.canvas.width,
+            outerRatio = viewWidth / viewHeight,
+            innerRatio = width / height,
+            scaleX = 1,
+            scaleY = 1;
+
+        // find scale factor
+        if (innerRatio > outerRatio) {
+            scaleY = innerRatio / outerRatio;
+        } else {
+            scaleX = outerRatio / innerRatio;
+        }
+
+        // enable bounds
+        render.options.hasBounds = true;
+
+        // position and size
+        render.bounds.min.x = bounds.min.x;
+        render.bounds.max.x = bounds.min.x + width * scaleX;
+        render.bounds.min.y = bounds.min.y;
+        render.bounds.max.y = bounds.min.y + height * scaleY;
+
+        // center
+        if (center) {
+            render.bounds.min.x += width * 0.5 - (width * scaleX) * 0.5;
+            render.bounds.max.x += width * 0.5 - (width * scaleX) * 0.5;
+            render.bounds.min.y += height * 0.5 - (height * scaleY) * 0.5;
+            render.bounds.max.y += height * 0.5 - (height * scaleY) * 0.5;
+        }
+
+        // padding
+        render.bounds.min.x -= padding.x;
+        render.bounds.max.x -= padding.x;
+        render.bounds.min.y -= padding.y;
+        render.bounds.max.y -= padding.y;
+
+        // update mouse
+        if (render.mouse) {
+            Mouse.setScale(render.mouse, {
+                x: (render.bounds.max.x - render.bounds.min.x) / render.canvas.width,
+                y: (render.bounds.max.y - render.bounds.min.y) / render.canvas.height
+            });
+
+            Mouse.setOffset(render.mouse, render.bounds.min);
+        }
+    };
+
+    /**
+     * Applies viewport transforms based on `render.bounds` to a render context.
+     * @method startViewTransform
+     * @param {render} render
+     */
+    Render.startViewTransform = function(render) {
+        var boundsWidth = render.bounds.max.x - render.bounds.min.x,
+            boundsHeight = render.bounds.max.y - render.bounds.min.y,
+            boundsScaleX = boundsWidth / render.options.width,
+            boundsScaleY = boundsHeight / render.options.height;
+
+        render.context.setTransform(
+            render.options.pixelRatio / boundsScaleX, 0, 0, 
+            render.options.pixelRatio / boundsScaleY, 0, 0
+        );
+        
+        render.context.translate(-render.bounds.min.x, -render.bounds.min.y);
+    };
+
+    /**
+     * Resets all transforms on the render context.
+     * @method endViewTransform
+     * @param {render} render
+     */
+    Render.endViewTransform = function(render) {
+        render.context.setTransform(render.options.pixelRatio, 0, 0, render.options.pixelRatio, 0, 0);
     };
 
     /**
      * Renders the given `engine`'s `Matter.World` object.
      * This is the entry point for all rendering and should be called every time the scene changes.
      * @method world
-     * @param {engine} engine
+     * @param {render} render
      */
-    Render.world = function(engine) {
-        var render = engine.render,
+    Render.world = function(render, time) {
+        var startTime = Common.now(),
+            engine = render.engine,
             world = engine.world,
             canvas = render.canvas,
             context = render.context,
             options = render.options,
-            allBodies = Composite.allBodies(world),
+            timing = render.timing;
+
+        var allBodies = Composite.allBodies(world),
             allConstraints = Composite.allConstraints(world),
             background = options.wireframes ? options.wireframeBackground : options.background,
             bodies = [],
@@ -161,11 +382,6 @@ var Vector = require('../geometry/Vector');
 
         // handle bounds
         if (options.hasBounds) {
-            var boundsWidth = render.bounds.max.x - render.bounds.min.x,
-                boundsHeight = render.bounds.max.y - render.bounds.min.y,
-                boundsScaleX = boundsWidth / options.width,
-                boundsScaleY = boundsHeight / options.height;
-
             // filter out bodies that are not in view
             for (i = 0; i < allBodies.length; i++) {
                 var body = allBodies[i];
@@ -192,131 +408,248 @@ var Vector = require('../geometry/Vector');
             }
 
             // transform the view
-            context.scale(1 / boundsScaleX, 1 / boundsScaleY);
-            context.translate(-render.bounds.min.x, -render.bounds.min.y);
+            Render.startViewTransform(render);
+
+            // update mouse
+            if (render.mouse) {
+                Mouse.setScale(render.mouse, {
+                    x: (render.bounds.max.x - render.bounds.min.x) / render.options.width,
+                    y: (render.bounds.max.y - render.bounds.min.y) / render.options.height
+                });
+
+                Mouse.setOffset(render.mouse, render.bounds.min);
+            }
         } else {
             constraints = allConstraints;
             bodies = allBodies;
+
+            if (render.options.pixelRatio !== 1) {
+                render.context.setTransform(render.options.pixelRatio, 0, 0, render.options.pixelRatio, 0, 0);
+            }
         }
 
         if (!options.wireframes || (engine.enableSleeping && options.showSleeping)) {
             // fully featured rendering of bodies
-            Render.bodies(engine, bodies, context);
+            Render.bodies(render, bodies, context);
         } else {
             if (options.showConvexHulls)
-                Render.bodyConvexHulls(engine, bodies, context);
+                Render.bodyConvexHulls(render, bodies, context);
 
             // optimised method for wireframes only
-            Render.bodyWireframes(engine, bodies, context);
+            Render.bodyWireframes(render, bodies, context);
         }
 
         if (options.showBounds)
-            Render.bodyBounds(engine, bodies, context);
+            Render.bodyBounds(render, bodies, context);
 
         if (options.showAxes || options.showAngleIndicator)
-            Render.bodyAxes(engine, bodies, context);
-        
+            Render.bodyAxes(render, bodies, context);
+
         if (options.showPositions)
-            Render.bodyPositions(engine, bodies, context);
+            Render.bodyPositions(render, bodies, context);
 
         if (options.showVelocity)
-            Render.bodyVelocity(engine, bodies, context);
+            Render.bodyVelocity(render, bodies, context);
 
         if (options.showIds)
-            Render.bodyIds(engine, bodies, context);
+            Render.bodyIds(render, bodies, context);
 
         if (options.showSeparations)
-            Render.separations(engine, engine.pairs.list, context);
+            Render.separations(render, engine.pairs.list, context);
 
         if (options.showCollisions)
-            Render.collisions(engine, engine.pairs.list, context);
+            Render.collisions(render, engine.pairs.list, context);
 
         if (options.showVertexNumbers)
-            Render.vertexNumbers(engine, bodies, context);
+            Render.vertexNumbers(render, bodies, context);
 
         if (options.showMousePosition)
-            Render.mousePosition(engine, render.mouse, context);
+            Render.mousePosition(render, render.mouse, context);
 
         Render.constraints(constraints, context);
 
-        if (options.showBroadphase && engine.broadphase.controller === Grid)
-            Render.grid(engine, engine.broadphase, context);
-
-        if (options.showDebug)
-            Render.debug(engine, context);
-
         if (options.hasBounds) {
             // revert view transforms
-            context.setTransform(options.pixelRatio, 0, 0, options.pixelRatio, 0, 0);
+            Render.endViewTransform(render);
         }
 
         Events.trigger(render, 'afterRender', event);
+
+        // log the time elapsed computing this update
+        timing.lastElapsed = Common.now() - startTime;
     };
 
     /**
-     * Description
+     * Renders statistics about the engine and world useful for debugging.
      * @private
-     * @method debug
-     * @param {engine} engine
+     * @method stats
+     * @param {render} render
+     * @param {RenderingContext} context
+     * @param {Number} time
+     */
+    Render.stats = function(render, context, time) {
+        var engine = render.engine,
+            world = engine.world,
+            bodies = Composite.allBodies(world),
+            parts = 0,
+            width = 55,
+            height = 44,
+            x = 0,
+            y = 0;
+        
+        // count parts
+        for (var i = 0; i < bodies.length; i += 1) {
+            parts += bodies[i].parts.length;
+        }
+
+        // sections
+        var sections = {
+            'Part': parts,
+            'Body': bodies.length,
+            'Cons': Composite.allConstraints(world).length,
+            'Comp': Composite.allComposites(world).length,
+            'Pair': engine.pairs.list.length
+        };
+
+        // background
+        context.fillStyle = '#0e0f19';
+        context.fillRect(x, y, width * 5.5, height);
+
+        context.font = '12px Arial';
+        context.textBaseline = 'top';
+        context.textAlign = 'right';
+
+        // sections
+        for (var key in sections) {
+            var section = sections[key];
+            // label
+            context.fillStyle = '#aaa';
+            context.fillText(key, x + width, y + 8);
+
+            // value
+            context.fillStyle = '#eee';
+            context.fillText(section, x + width, y + 26);
+
+            x += width;
+        }
+    };
+
+    /**
+     * Renders engine and render performance information.
+     * @private
+     * @method performance
+     * @param {render} render
      * @param {RenderingContext} context
      */
-    Render.debug = function(engine, context) {
-        var c = context,
-            world = engine.world,
-            render = engine.render,
-            metrics = engine.metrics,
-            options = render.options,
-            bodies = Composite.allBodies(world),
-            space = "    ";
+    Render.performance = function(render, context) {
+        var engine = render.engine,
+            timing = render.timing,
+            deltaHistory = timing.deltaHistory,
+            elapsedHistory = timing.elapsedHistory,
+            timestampElapsedHistory = timing.timestampElapsedHistory,
+            engineDeltaHistory = timing.engineDeltaHistory,
+            engineElapsedHistory = timing.engineElapsedHistory,
+            lastEngineDelta = engine.timing.lastDelta;
+        
+        var deltaMean = _mean(deltaHistory),
+            elapsedMean = _mean(elapsedHistory),
+            engineDeltaMean = _mean(engineDeltaHistory),
+            engineElapsedMean = _mean(engineElapsedHistory),
+            timestampElapsedMean = _mean(timestampElapsedHistory),
+            rateMean = (timestampElapsedMean / deltaMean) || 0,
+            fps = (1000 / deltaMean) || 0;
 
-        if (engine.timing.timestamp - (render.debugTimestamp || 0) >= 500) {
-            var text = "";
+        var graphHeight = 4,
+            gap = 12,
+            width = 60,
+            height = 34,
+            x = 10,
+            y = 69;
 
-            if (metrics.timing) {
-                text += "fps: " + Math.round(metrics.timing.fps) + space;
-            }
+        // background
+        context.fillStyle = '#0e0f19';
+        context.fillRect(0, 50, gap * 4 + width * 5 + 22, height);
 
-            // @if DEBUG
-            if (metrics.extended) {
-                if (metrics.timing) {
-                    text += "delta: " + metrics.timing.delta.toFixed(3) + space;
-                    text += "correction: " + metrics.timing.correction.toFixed(3) + space;
-                }
+        // show FPS
+        Render.status(
+            context, x, y, width, graphHeight, deltaHistory.length, 
+            Math.round(fps) + ' fps', 
+            fps / Render._goodFps,
+            function(i) { return (deltaHistory[i] / deltaMean) - 1; }
+        );
 
-                text += "bodies: " + bodies.length + space;
+        // show engine delta
+        Render.status(
+            context, x + gap + width, y, width, graphHeight, engineDeltaHistory.length,
+            lastEngineDelta.toFixed(2) + ' dt', 
+            Render._goodDelta / lastEngineDelta,
+            function(i) { return (engineDeltaHistory[i] / engineDeltaMean) - 1; }
+        );
 
-                if (engine.broadphase.controller === Grid)
-                    text += "buckets: " + metrics.buckets + space;
+        // show engine update time
+        Render.status(
+            context, x + (gap + width) * 2, y, width, graphHeight, engineElapsedHistory.length,
+            engineElapsedMean.toFixed(2) + ' ut', 
+            1 - (engineElapsedMean / Render._goodFps),
+            function(i) { return (engineElapsedHistory[i] / engineElapsedMean) - 1; }
+        );
 
-                text += "\n";
+        // show render time
+        Render.status(
+            context, x + (gap + width) * 3, y, width, graphHeight, elapsedHistory.length,
+            elapsedMean.toFixed(2) + ' rt', 
+            1 - (elapsedMean / Render._goodFps),
+            function(i) { return (elapsedHistory[i] / elapsedMean) - 1; }
+        );
 
-                text += "collisions: " + metrics.collisions + space;
-                text += "pairs: " + engine.pairs.list.length + space;
-                text += "broad: " + metrics.broadEff + space;
-                text += "mid: " + metrics.midEff + space;
-                text += "narrow: " + metrics.narrowEff + space;
-            }
-            // @endif            
+        // show effective speed
+        Render.status(
+            context, x + (gap + width) * 4, y, width, graphHeight, timestampElapsedHistory.length, 
+            rateMean.toFixed(2) + ' x', 
+            rateMean * rateMean * rateMean,
+            function(i) { return (((timestampElapsedHistory[i] / deltaHistory[i]) / rateMean) || 0) - 1; }
+        );
+    };
 
-            render.debugString = text;
-            render.debugTimestamp = engine.timing.timestamp;
+    /**
+     * Renders a label, indicator and a chart.
+     * @private
+     * @method status
+     * @param {RenderingContext} context
+     * @param {number} x
+     * @param {number} y
+     * @param {number} width
+     * @param {number} height
+     * @param {number} count
+     * @param {string} label
+     * @param {string} indicator
+     * @param {function} plotY
+     */
+    Render.status = function(context, x, y, width, height, count, label, indicator, plotY) {
+        // background
+        context.strokeStyle = '#888';
+        context.fillStyle = '#444';
+        context.lineWidth = 1;
+        context.fillRect(x, y + 7, width, 1);
+
+        // chart
+        context.beginPath();
+        context.moveTo(x, y + 7 - height * Common.clamp(0.4 * plotY(0), -2, 2));
+        for (var i = 0; i < width; i += 1) {
+            context.lineTo(x + i, y + 7 - (i < count ? height * Common.clamp(0.4 * plotY(i), -2, 2) : 0));
         }
+        context.stroke();
 
-        if (render.debugString) {
-            c.font = "12px Arial";
+        // indicator
+        context.fillStyle = 'hsl(' + Common.clamp(25 + 95 * indicator, 0, 120) + ',100%,60%)';
+        context.fillRect(x, y - 7, 4, 4);
 
-            if (options.wireframes) {
-                c.fillStyle = 'rgba(255,255,255,0.5)';
-            } else {
-                c.fillStyle = 'rgba(0,0,0,0.5)';
-            }
-
-            var split = render.debugString.split('\n');
-
-            for (var i = 0; i < split.length; i++) {
-                c.fillText(split[i], 50, 50 + i * 18);
-            }
-        }
+        // label
+        context.font = '12px Arial';
+        context.textBaseline = 'middle';
+        context.textAlign = 'right';
+        context.fillStyle = '#eee';
+        context.fillText(label, x + width, y - 5);
     };
 
     /**
@@ -336,74 +669,63 @@ var Vector = require('../geometry/Vector');
                 continue;
 
             var bodyA = constraint.bodyA,
-                bodyB = constraint.bodyB;
+                bodyB = constraint.bodyB,
+                start,
+                end;
 
             if (bodyA) {
-                c.beginPath();
-                c.moveTo(bodyA.position.x + constraint.pointA.x, bodyA.position.y + constraint.pointA.y);
+                start = Vector.add(bodyA.position, constraint.pointA);
             } else {
-                c.beginPath();
-                c.moveTo(constraint.pointA.x, constraint.pointA.y);
+                start = constraint.pointA;
             }
 
-            if (bodyB) {
-                c.lineTo(bodyB.position.x + constraint.pointB.x, bodyB.position.y + constraint.pointB.y);
-            } else {
-                c.lineTo(constraint.pointB.x, constraint.pointB.y);
-            }
-
-            c.lineWidth = constraint.render.lineWidth;
-            c.strokeStyle = constraint.render.strokeStyle;
-            c.stroke();
-        }
-    };
-    
-    /**
-     * Description
-     * @private
-     * @method bodyShadows
-     * @param {engine} engine
-     * @param {body[]} bodies
-     * @param {RenderingContext} context
-     */
-    Render.bodyShadows = function(engine, bodies, context) {
-        var c = context,
-            render = engine.render;
-
-        for (var i = 0; i < bodies.length; i++) {
-            var body = bodies[i];
-
-            if (!body.render.visible)
-                continue;
-
-            if (body.circleRadius) {
+            if (constraint.render.type === 'pin') {
                 c.beginPath();
-                c.arc(body.position.x, body.position.y, body.circleRadius, 0, 2 * Math.PI);
+                c.arc(start.x, start.y, 3, 0, 2 * Math.PI);
                 c.closePath();
             } else {
-                c.beginPath();
-                c.moveTo(body.vertices[0].x, body.vertices[0].y);
-                for (var j = 1; j < body.vertices.length; j++) {
-                    c.lineTo(body.vertices[j].x, body.vertices[j].y);
+                if (bodyB) {
+                    end = Vector.add(bodyB.position, constraint.pointB);
+                } else {
+                    end = constraint.pointB;
                 }
-                c.closePath();
+
+                c.beginPath();
+                c.moveTo(start.x, start.y);
+
+                if (constraint.render.type === 'spring') {
+                    var delta = Vector.sub(end, start),
+                        normal = Vector.perp(Vector.normalise(delta)),
+                        coils = Math.ceil(Common.clamp(constraint.length / 5, 12, 20)),
+                        offset;
+
+                    for (var j = 1; j < coils; j += 1) {
+                        offset = j % 2 === 0 ? 1 : -1;
+
+                        c.lineTo(
+                            start.x + delta.x * (j / coils) + normal.x * offset * 4,
+                            start.y + delta.y * (j / coils) + normal.y * offset * 4
+                        );
+                    }
+                }
+
+                c.lineTo(end.x, end.y);
             }
 
-            var distanceX = body.position.x - render.options.width * 0.5,
-                distanceY = body.position.y - render.options.height * 0.2,
-                distance = Math.abs(distanceX) + Math.abs(distanceY);
+            if (constraint.render.lineWidth) {
+                c.lineWidth = constraint.render.lineWidth;
+                c.strokeStyle = constraint.render.strokeStyle;
+                c.stroke();
+            }
 
-            c.shadowColor = 'rgba(0,0,0,0.15)';
-            c.shadowOffsetX = 0.05 * distanceX;
-            c.shadowOffsetY = 0.05 * distanceY;
-            c.shadowBlur = 1 + 12 * Math.min(1, distance / 1000);
-
-            c.fill();
-
-            c.shadowColor = null;
-            c.shadowOffsetX = null;
-            c.shadowOffsetY = null;
-            c.shadowBlur = null;
+            if (constraint.render.anchors) {
+                c.fillStyle = constraint.render.strokeStyle;
+                c.beginPath();
+                c.arc(start.x, start.y, 3, 0, 2 * Math.PI);
+                c.arc(end.x, end.y, 3, 0, 2 * Math.PI);
+                c.closePath();
+                c.fill();
+            }
         }
     };
 
@@ -411,14 +733,15 @@ var Vector = require('../geometry/Vector');
      * Description
      * @private
      * @method bodies
-     * @param {engine} engine
+     * @param {render} render
      * @param {body[]} bodies
      * @param {RenderingContext} context
      */
-    Render.bodies = function(engine, bodies, context) {
+    Render.bodies = function(render, bodies, context) {
         var c = context,
-            render = engine.render,
+            engine = render.engine,
             options = render.options,
+            showInternalEdges = options.showInternalEdges || !options.wireframes,
             body,
             part,
             i,
@@ -456,31 +779,31 @@ var Vector = require('../geometry/Vector');
                 if (!part.render.visible)
                     continue;
 
+                if (options.showSleeping && body.isSleeping) {
+                    c.globalAlpha = 0.5 * part.render.opacity;
+                } else if (part.render.opacity !== 1) {
+                    c.globalAlpha = part.render.opacity;
+                }
+
                 if (part.render.sprite && part.render.sprite.texture && !options.wireframes) {
                     // part sprite
                     var sprite = part.render.sprite,
                         texture = _getTexture(render, sprite.texture);
 
-                    if (options.showSleeping && body.isSleeping) 
-                        c.globalAlpha = 0.5;
-
-                    c.translate(part.position.x, part.position.y); 
+                    c.translate(part.position.x, part.position.y);
                     c.rotate(part.angle);
 
                     c.drawImage(
                         texture,
-                        texture.width * -sprite.xOffset * sprite.xScale, 
-                        texture.height * -sprite.yOffset * sprite.yScale, 
-                        texture.width * sprite.xScale, 
+                        texture.width * -sprite.xOffset * sprite.xScale,
+                        texture.height * -sprite.yOffset * sprite.yScale,
+                        texture.width * sprite.xScale,
                         texture.height * sprite.yScale
                     );
 
                     // revert translation, hopefully faster than save / restore
                     c.rotate(-part.angle);
-                    c.translate(-part.position.x, -part.position.y); 
-
-                    if (options.showSleeping && body.isSleeping) 
-                        c.globalAlpha = 1;
+                    c.translate(-part.position.x, -part.position.y);
                 } else {
                     // part polygon
                     if (part.circleRadius) {
@@ -489,31 +812,41 @@ var Vector = require('../geometry/Vector');
                     } else {
                         c.beginPath();
                         c.moveTo(part.vertices[0].x, part.vertices[0].y);
+
                         for (var j = 1; j < part.vertices.length; j++) {
-                            c.lineTo(part.vertices[j].x, part.vertices[j].y);
+                            if (!part.vertices[j - 1].isInternal || showInternalEdges) {
+                                c.lineTo(part.vertices[j].x, part.vertices[j].y);
+                            } else {
+                                c.moveTo(part.vertices[j].x, part.vertices[j].y);
+                            }
+
+                            if (part.vertices[j].isInternal && !showInternalEdges) {
+                                c.moveTo(part.vertices[(j + 1) % part.vertices.length].x, part.vertices[(j + 1) % part.vertices.length].y);
+                            }
                         }
+
+                        c.lineTo(part.vertices[0].x, part.vertices[0].y);
                         c.closePath();
                     }
 
                     if (!options.wireframes) {
-                        if (options.showSleeping && body.isSleeping) {
-                            c.fillStyle = Common.shadeColor(part.render.fillStyle, 50);
-                        } else {
-                            c.fillStyle = part.render.fillStyle;
+                        c.fillStyle = part.render.fillStyle;
+
+                        if (part.render.lineWidth) {
+                            c.lineWidth = part.render.lineWidth;
+                            c.strokeStyle = part.render.strokeStyle;
+                            c.stroke();
                         }
 
-                        c.lineWidth = part.render.lineWidth;
-                        c.strokeStyle = part.render.strokeStyle;
                         c.fill();
-                        c.stroke();
                     } else {
                         c.lineWidth = 1;
-                        c.strokeStyle = '#bbb';
-                        if (options.showSleeping && body.isSleeping)
-                            c.strokeStyle = 'rgba(255,255,255,0.2)';
+                        c.strokeStyle = render.options.wireframeStrokeStyle;
                         c.stroke();
                     }
                 }
+
+                c.globalAlpha = 1;
             }
         }
     };
@@ -522,13 +855,13 @@ var Vector = require('../geometry/Vector');
      * Optimised method for drawing body wireframes in one pass
      * @private
      * @method bodyWireframes
-     * @param {engine} engine
+     * @param {render} render
      * @param {body[]} bodies
      * @param {RenderingContext} context
      */
-    Render.bodyWireframes = function(engine, bodies, context) {
+    Render.bodyWireframes = function(render, bodies, context) {
         var c = context,
-            showInternalEdges = engine.render.options.showInternalEdges,
+            showInternalEdges = render.options.showInternalEdges,
             body,
             part,
             i,
@@ -561,13 +894,13 @@ var Vector = require('../geometry/Vector');
                         c.moveTo(part.vertices[(j + 1) % part.vertices.length].x, part.vertices[(j + 1) % part.vertices.length].y);
                     }
                 }
-                
+
                 c.lineTo(part.vertices[0].x, part.vertices[0].y);
             }
         }
 
         c.lineWidth = 1;
-        c.strokeStyle = '#bbb';
+        c.strokeStyle = render.options.wireframeStrokeStyle;
         c.stroke();
     };
 
@@ -575,11 +908,11 @@ var Vector = require('../geometry/Vector');
      * Optimised method for drawing body convex hull wireframes in one pass
      * @private
      * @method bodyConvexHulls
-     * @param {engine} engine
+     * @param {render} render
      * @param {body[]} bodies
      * @param {RenderingContext} context
      */
-    Render.bodyConvexHulls = function(engine, bodies, context) {
+    Render.bodyConvexHulls = function(render, bodies, context) {
         var c = context,
             body,
             part,
@@ -601,7 +934,7 @@ var Vector = require('../geometry/Vector');
             for (j = 1; j < body.vertices.length; j++) {
                 c.lineTo(body.vertices[j].x, body.vertices[j].y);
             }
-            
+
             c.lineTo(body.vertices[0].x, body.vertices[0].y);
         }
 
@@ -614,11 +947,11 @@ var Vector = require('../geometry/Vector');
      * Renders body vertex numbers.
      * @private
      * @method vertexNumbers
-     * @param {engine} engine
+     * @param {render} render
      * @param {body[]} bodies
      * @param {RenderingContext} context
      */
-    Render.vertexNumbers = function(engine, bodies, context) {
+    Render.vertexNumbers = function(render, bodies, context) {
         var c = context,
             i,
             j,
@@ -640,11 +973,11 @@ var Vector = require('../geometry/Vector');
      * Renders mouse position.
      * @private
      * @method mousePosition
-     * @param {engine} engine
+     * @param {render} render
      * @param {mouse} mouse
      * @param {RenderingContext} context
      */
-    Render.mousePosition = function(engine, mouse, context) {
+    Render.mousePosition = function(render, mouse, context) {
         var c = context;
         c.fillStyle = 'rgba(255,255,255,0.8)';
         c.fillText(mouse.position.x + '  ' + mouse.position.y, mouse.position.x + 5, mouse.position.y - 5);
@@ -654,13 +987,13 @@ var Vector = require('../geometry/Vector');
      * Draws body bounds
      * @private
      * @method bodyBounds
-     * @param {engine} engine
+     * @param {render} render
      * @param {body[]} bodies
      * @param {RenderingContext} context
      */
-    Render.bodyBounds = function(engine, bodies, context) {
+    Render.bodyBounds = function(render, bodies, context) {
         var c = context,
-            render = engine.render,
+            engine = render.engine,
             options = render.options;
 
         c.beginPath();
@@ -691,13 +1024,13 @@ var Vector = require('../geometry/Vector');
      * Draws body angle indicators and axes
      * @private
      * @method bodyAxes
-     * @param {engine} engine
+     * @param {render} render
      * @param {body[]} bodies
      * @param {RenderingContext} context
      */
-    Render.bodyAxes = function(engine, bodies, context) {
+    Render.bodyAxes = function(render, bodies, context) {
         var c = context,
-            render = engine.render,
+            engine = render.engine,
             options = render.options,
             part,
             i,
@@ -729,8 +1062,8 @@ var Vector = require('../geometry/Vector');
                     for (k = 0; k < part.axes.length; k++) {
                         // render a single axis indicator
                         c.moveTo(part.position.x, part.position.y);
-                        c.lineTo((part.vertices[0].x + part.vertices[part.vertices.length-1].x) / 2, 
-                                 (part.vertices[0].y + part.vertices[part.vertices.length-1].y) / 2);
+                        c.lineTo((part.vertices[0].x + part.vertices[part.vertices.length-1].x) / 2,
+                            (part.vertices[0].y + part.vertices[part.vertices.length-1].y) / 2);
                     }
                 }
             }
@@ -738,25 +1071,28 @@ var Vector = require('../geometry/Vector');
 
         if (options.wireframes) {
             c.strokeStyle = 'indianred';
+            c.lineWidth = 1;
         } else {
-            c.strokeStyle = 'rgba(0,0,0,0.3)';
+            c.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+            c.globalCompositeOperation = 'overlay';
+            c.lineWidth = 2;
         }
 
-        c.lineWidth = 1;
         c.stroke();
+        c.globalCompositeOperation = 'source-over';
     };
 
     /**
      * Draws body positions
      * @private
      * @method bodyPositions
-     * @param {engine} engine
+     * @param {render} render
      * @param {body[]} bodies
      * @param {RenderingContext} context
      */
-    Render.bodyPositions = function(engine, bodies, context) {
+    Render.bodyPositions = function(render, bodies, context) {
         var c = context,
-            render = engine.render,
+            engine = render.engine,
             options = render.options,
             body,
             part,
@@ -806,11 +1142,11 @@ var Vector = require('../geometry/Vector');
      * Draws body velocity
      * @private
      * @method bodyVelocity
-     * @param {engine} engine
+     * @param {render} render
      * @param {body[]} bodies
      * @param {RenderingContext} context
      */
-    Render.bodyVelocity = function(engine, bodies, context) {
+    Render.bodyVelocity = function(render, bodies, context) {
         var c = context;
 
         c.beginPath();
@@ -821,8 +1157,10 @@ var Vector = require('../geometry/Vector');
             if (!body.render.visible)
                 continue;
 
+            var velocity = Body.getVelocity(body);
+
             c.moveTo(body.position.x, body.position.y);
-            c.lineTo(body.position.x + (body.position.x - body.positionPrev.x) * 2, body.position.y + (body.position.y - body.positionPrev.y) * 2);
+            c.lineTo(body.position.x + velocity.x, body.position.y + velocity.y);
         }
 
         c.lineWidth = 3;
@@ -834,11 +1172,11 @@ var Vector = require('../geometry/Vector');
      * Draws body ids
      * @private
      * @method bodyIds
-     * @param {engine} engine
+     * @param {render} render
      * @param {body[]} bodies
      * @param {RenderingContext} context
      */
-    Render.bodyIds = function(engine, bodies, context) {
+    Render.bodyIds = function(render, bodies, context) {
         var c = context,
             i,
             j;
@@ -861,13 +1199,13 @@ var Vector = require('../geometry/Vector');
      * Description
      * @private
      * @method collisions
-     * @param {engine} engine
+     * @param {render} render
      * @param {pair[]} pairs
      * @param {RenderingContext} context
      */
-    Render.collisions = function(engine, pairs, context) {
+    Render.collisions = function(render, pairs, context) {
         var c = context,
-            options = engine.render.options,
+            options = render.options,
             pair,
             collision,
             corrected,
@@ -901,7 +1239,7 @@ var Vector = require('../geometry/Vector');
         c.fill();
 
         c.beginPath();
-            
+
         // render collision normals
         for (i = 0; i < pairs.length; i++) {
             pair = pairs[i];
@@ -919,7 +1257,7 @@ var Vector = require('../geometry/Vector');
                     normalPosX = (pair.activeContacts[0].vertex.x + pair.activeContacts[1].vertex.x) / 2;
                     normalPosY = (pair.activeContacts[0].vertex.y + pair.activeContacts[1].vertex.y) / 2;
                 }
-                
+
                 if (collision.bodyB === collision.supports[0].body || collision.bodyA.isStatic === true) {
                     c.moveTo(normalPosX - collision.normal.x * 8, normalPosY - collision.normal.y * 8);
                 } else {
@@ -944,13 +1282,13 @@ var Vector = require('../geometry/Vector');
      * Description
      * @private
      * @method separations
-     * @param {engine} engine
+     * @param {render} render
      * @param {pair[]} pairs
      * @param {RenderingContext} context
      */
-    Render.separations = function(engine, pairs, context) {
+    Render.separations = function(render, pairs, context) {
         var c = context,
-            options = engine.render.options,
+            options = render.options,
             pair,
             collision,
             corrected,
@@ -1000,45 +1338,6 @@ var Vector = require('../geometry/Vector');
     /**
      * Description
      * @private
-     * @method grid
-     * @param {engine} engine
-     * @param {grid} grid
-     * @param {RenderingContext} context
-     */
-    Render.grid = function(engine, grid, context) {
-        var c = context,
-            options = engine.render.options;
-
-        if (options.wireframes) {
-            c.strokeStyle = 'rgba(255,180,0,0.1)';
-        } else {
-            c.strokeStyle = 'rgba(255,180,0,0.5)';
-        }
-
-        c.beginPath();
-
-        var bucketKeys = Common.keys(grid.buckets);
-
-        for (var i = 0; i < bucketKeys.length; i++) {
-            var bucketId = bucketKeys[i];
-
-            if (grid.buckets[bucketId].length < 2)
-                continue;
-
-            var region = bucketId.split(',');
-            c.rect(0.5 + parseInt(region[0], 10) * grid.bucketWidth, 
-                    0.5 + parseInt(region[1], 10) * grid.bucketHeight, 
-                    grid.bucketWidth, 
-                    grid.bucketHeight);
-        }
-
-        c.lineWidth = 1;
-        c.stroke();
-    };
-
-    /**
-     * Description
-     * @private
      * @method inspector
      * @param {inspector} inspector
      * @param {RenderingContext} context
@@ -1046,7 +1345,7 @@ var Vector = require('../geometry/Vector');
     Render.inspector = function(inspector, context) {
         var engine = inspector.engine,
             selected = inspector.selected,
-            render = engine.render,
+            render = inspector.render,
             options = render.options,
             bounds;
 
@@ -1055,7 +1354,7 @@ var Vector = require('../geometry/Vector');
                 boundsHeight = render.bounds.max.y - render.bounds.min.y,
                 boundsScaleX = boundsWidth / render.options.width,
                 boundsScaleY = boundsHeight / render.options.height;
-            
+
             context.scale(1 / boundsScaleX, 1 / boundsScaleY);
             context.translate(-render.bounds.min.x, -render.bounds.min.y);
         }
@@ -1075,8 +1374,8 @@ var Vector = require('../geometry/Vector');
                 // render body selections
                 bounds = item.bounds;
                 context.beginPath();
-                context.rect(Math.floor(bounds.min.x - 3), Math.floor(bounds.min.y - 3), 
-                             Math.floor(bounds.max.x - bounds.min.x + 6), Math.floor(bounds.max.y - bounds.min.y + 6));
+                context.rect(Math.floor(bounds.min.x - 3), Math.floor(bounds.min.y - 3),
+                    Math.floor(bounds.max.x - bounds.min.x + 6), Math.floor(bounds.max.y - bounds.min.y + 6));
                 context.closePath();
                 context.stroke();
 
@@ -1109,8 +1408,8 @@ var Vector = require('../geometry/Vector');
             context.fillStyle = 'rgba(255,165,0,0.1)';
             bounds = inspector.selectBounds;
             context.beginPath();
-            context.rect(Math.floor(bounds.min.x), Math.floor(bounds.min.y), 
-                         Math.floor(bounds.max.x - bounds.min.x), Math.floor(bounds.max.y - bounds.min.y));
+            context.rect(Math.floor(bounds.min.x), Math.floor(bounds.min.y),
+                Math.floor(bounds.max.x - bounds.min.x), Math.floor(bounds.max.y - bounds.min.y));
             context.closePath();
             context.stroke();
             context.fill();
@@ -1122,7 +1421,56 @@ var Vector = require('../geometry/Vector');
     };
 
     /**
-     * Description
+     * Updates render timing.
+     * @method _updateTiming
+     * @private
+     * @param {render} render
+     * @param {number} time
+     */
+    var _updateTiming = function(render, time) {
+        var engine = render.engine,
+            timing = render.timing,
+            historySize = timing.historySize,
+            timestamp = engine.timing.timestamp;
+
+        timing.delta = time - timing.lastTime || Render._goodDelta;
+        timing.lastTime = time;
+
+        timing.timestampElapsed = timestamp - timing.lastTimestamp || 0;
+        timing.lastTimestamp = timestamp;
+
+        timing.deltaHistory.unshift(timing.delta);
+        timing.deltaHistory.length = Math.min(timing.deltaHistory.length, historySize);
+
+        timing.engineDeltaHistory.unshift(engine.timing.lastDelta);
+        timing.engineDeltaHistory.length = Math.min(timing.engineDeltaHistory.length, historySize);
+
+        timing.timestampElapsedHistory.unshift(timing.timestampElapsed);
+        timing.timestampElapsedHistory.length = Math.min(timing.timestampElapsedHistory.length, historySize);
+
+        timing.engineElapsedHistory.unshift(engine.timing.lastElapsed);
+        timing.engineElapsedHistory.length = Math.min(timing.engineElapsedHistory.length, historySize);
+
+        timing.elapsedHistory.unshift(timing.lastElapsed);
+        timing.elapsedHistory.length = Math.min(timing.elapsedHistory.length, historySize);
+    };
+
+    /**
+     * Returns the mean value of the given numbers.
+     * @method _mean
+     * @private
+     * @param {Number[]} values
+     * @return {Number} the mean of given values
+     */
+    var _mean = function(values) {
+        var result = 0;
+        for (var i = 0; i < values.length; i += 1) {
+            result += values[i];
+        }
+        return (result / values.length) || 0;
+    };
+
+    /**
      * @method _createCanvas
      * @private
      * @param {} width
@@ -1228,8 +1576,16 @@ var Vector = require('../geometry/Vector');
     /**
      * A back-reference to the `Matter.Render` module.
      *
+     * @deprecated
      * @property controller
      * @type render
+     */
+
+    /**
+     * A reference to the `Matter.Engine` instance to be used.
+     *
+     * @property engine
+     * @type engine
      */
 
     /**
@@ -1249,38 +1605,7 @@ var Vector = require('../geometry/Vector');
      */
 
     /**
-     * The configuration options of the renderer.
-     *
-     * @property options
-     * @type {}
-     */
-
-    /**
-     * The target width in pixels of the `render.canvas` to be created.
-     *
-     * @property options.width
-     * @type number
-     * @default 800
-     */
-
-    /**
-     * The target height in pixels of the `render.canvas` to be created.
-     *
-     * @property options.height
-     * @type number
-     * @default 600
-     */
-
-    /**
-     * A flag that specifies if `render.bounds` should be used when rendering.
-     *
-     * @property options.hasBounds
-     * @type boolean
-     * @default false
-     */
-
-    /**
-     * A `Bounds` object that specifies the drawing view region. 
+     * A `Bounds` object that specifies the drawing view region.
      * Rendering will be automatically transformed and scaled to fit within the canvas size (`render.options.width` and `render.options.height`).
      * This allows for creating views that can pan or zoom around the scene.
      * You must also set `render.options.hasBounds` to `true` to enable bounded rendering.
@@ -1301,6 +1626,266 @@ var Vector = require('../geometry/Vector');
      *
      * @property textures
      * @type {}
+     */
+
+    /**
+     * The mouse to render if `render.options.showMousePosition` is enabled.
+     *
+     * @property mouse
+     * @type mouse
+     * @default null
+     */
+
+    /**
+     * The configuration options of the renderer.
+     *
+     * @property options
+     * @type {}
+     */
+
+    /**
+     * The target width in pixels of the `render.canvas` to be created.
+     * See also the `options.pixelRatio` property to change render quality.
+     *
+     * @property options.width
+     * @type number
+     * @default 800
+     */
+
+    /**
+     * The target height in pixels of the `render.canvas` to be created.
+     * See also the `options.pixelRatio` property to change render quality.
+     *
+     * @property options.height
+     * @type number
+     * @default 600
+     */
+
+    /**
+     * The [pixel ratio](https://developer.mozilla.org/en-US/docs/Web/API/Window/devicePixelRatio) to use when rendering.
+     *
+     * @property options.pixelRatio
+     * @type number
+     * @default 1
+     */
+
+    /**
+     * A CSS background color string to use when `render.options.wireframes` is disabled.
+     * This may be also set to `'transparent'` or equivalent.
+     *
+     * @property options.background
+     * @type string
+     * @default '#14151f'
+     */
+
+    /**
+     * A CSS color string to use for background when `render.options.wireframes` is enabled.
+     * This may be also set to `'transparent'` or equivalent.
+     *
+     * @property options.wireframeBackground
+     * @type string
+     * @default '#14151f'
+     */
+
+    /**
+     * A CSS color string to use for stroke when `render.options.wireframes` is enabled.
+     * This may be also set to `'transparent'` or equivalent.
+     *
+     * @property options.wireframeStrokeStyle
+     * @type string
+     * @default '#bbb'
+     */
+
+    /**
+     * A flag that specifies if `render.bounds` should be used when rendering.
+     *
+     * @property options.hasBounds
+     * @type boolean
+     * @default false
+     */
+
+    /**
+     * A flag to enable or disable all debug information overlays together.  
+     * This includes and has priority over the values of:
+     *
+     * - `render.options.showStats`
+     * - `render.options.showPerformance`
+     *
+     * @property options.showDebug
+     * @type boolean
+     * @default false
+     */
+
+    /**
+     * A flag to enable or disable the engine stats info overlay.  
+     * From left to right, the values shown are:
+     *
+     * - body parts total
+     * - body total
+     * - constraints total
+     * - composites total
+     * - collision pairs total
+     *
+     * @property options.showStats
+     * @type boolean
+     * @default false
+     */
+
+    /**
+     * A flag to enable or disable performance charts.  
+     * From left to right, the values shown are:
+     *
+     * - average render frequency (e.g. 60 fps)
+     * - exact engine delta time used for last update (e.g. 16.66ms)
+     * - average engine execution duration (e.g. 5.00ms)
+     * - average render execution duration (e.g. 0.40ms)
+     * - average effective play speed (e.g. '1.00x' is 'real-time')
+     *
+     * Each value is recorded over a fixed sample of past frames (60 frames).
+     *
+     * A chart shown below each value indicates the variance from the average over the sample.
+     * The more stable or fixed the value is the flatter the chart will appear.
+     *
+     * @property options.showPerformance
+     * @type boolean
+     * @default false
+     */
+    
+    /**
+     * A flag to enable or disable rendering entirely.
+     *
+     * @property options.enabled
+     * @type boolean
+     * @default false
+     */
+
+    /**
+     * A flag to toggle wireframe rendering otherwise solid fill rendering is used.
+     *
+     * @property options.wireframes
+     * @type boolean
+     * @default true
+     */
+
+    /**
+     * A flag to enable or disable sleeping bodies indicators.
+     *
+     * @property options.showSleeping
+     * @type boolean
+     * @default true
+     */
+
+    /**
+     * A flag to enable or disable the debug information overlay.
+     *
+     * @property options.showDebug
+     * @type boolean
+     * @default false
+     */
+
+    /**
+     * A flag to enable or disable the collision broadphase debug overlay.
+     *
+     * @deprecated no longer implemented
+     * @property options.showBroadphase
+     * @type boolean
+     * @default false
+     */
+
+    /**
+     * A flag to enable or disable the body bounds debug overlay.
+     *
+     * @property options.showBounds
+     * @type boolean
+     * @default false
+     */
+
+    /**
+     * A flag to enable or disable the body velocity debug overlay.
+     *
+     * @property options.showVelocity
+     * @type boolean
+     * @default false
+     */
+
+    /**
+     * A flag to enable or disable the body collisions debug overlay.
+     *
+     * @property options.showCollisions
+     * @type boolean
+     * @default false
+     */
+
+    /**
+     * A flag to enable or disable the collision resolver separations debug overlay.
+     *
+     * @property options.showSeparations
+     * @type boolean
+     * @default false
+     */
+
+    /**
+     * A flag to enable or disable the body axes debug overlay.
+     *
+     * @property options.showAxes
+     * @type boolean
+     * @default false
+     */
+
+    /**
+     * A flag to enable or disable the body positions debug overlay.
+     *
+     * @property options.showPositions
+     * @type boolean
+     * @default false
+     */
+
+    /**
+     * A flag to enable or disable the body angle debug overlay.
+     *
+     * @property options.showAngleIndicator
+     * @type boolean
+     * @default false
+     */
+
+    /**
+     * A flag to enable or disable the body and part ids debug overlay.
+     *
+     * @property options.showIds
+     * @type boolean
+     * @default false
+     */
+
+    /**
+     * A flag to enable or disable the body vertex numbers debug overlay.
+     *
+     * @property options.showVertexNumbers
+     * @type boolean
+     * @default false
+     */
+
+    /**
+     * A flag to enable or disable the body convex hulls debug overlay.
+     *
+     * @property options.showConvexHulls
+     * @type boolean
+     * @default false
+     */
+
+    /**
+     * A flag to enable or disable the body internal edges debug overlay.
+     *
+     * @property options.showInternalEdges
+     * @type boolean
+     * @default false
+     */
+
+    /**
+     * A flag to enable or disable the mouse position debug overlay.
+     *
+     * @property options.showMousePosition
+     * @type boolean
+     * @default false
      */
 
 })();

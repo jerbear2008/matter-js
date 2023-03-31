@@ -1,3 +1,475 @@
+## 0.19.0 (2023-02-16)
+
+See the release [readme](https://github.com/liabru/matter-js/blob/0.19.0/README.md) for further information.
+
+* added readme note about vue watchers ([035481c](https://github.com/liabru/matter-js/commit/035481c))
+* added readonly body.deltaTime ([0784a5b](https://github.com/liabru/matter-js/commit/0784a5b))
+* added speed setters to Body.set ([3ff6ff4](https://github.com/liabru/matter-js/commit/3ff6ff4))
+* added support for Matter.Runner and Matter.Render in tests ([7d7bad0](https://github.com/liabru/matter-js/commit/7d7bad0))
+* added updateVelocity argument to Body.setPosition, Body.setAngle, Body.translate, Body.rotate ([db8b73f](https://github.com/liabru/matter-js/commit/db8b73f))
+* changed engine collisionStart event to trigger after resolving and after updating body velocities ([70600a8](https://github.com/liabru/matter-js/commit/70600a8))
+* changed examples to be delta independent ([d7e4f58](https://github.com/liabru/matter-js/commit/d7e4f58))
+* deprecated render.controller property ([04d229e](https://github.com/liabru/matter-js/commit/04d229e))
+* derived velocity from position in setters ([b6de9ed](https://github.com/liabru/matter-js/commit/b6de9ed))
+* fixed issues with engine event.delta ([6f5af77](https://github.com/liabru/matter-js/commit/6f5af77))
+* handle null constraint points in Constraint.pointAWorld and Constraint.pointBWorld ([e414464](https://github.com/liabru/matter-js/commit/e414464))
+* improved Body.applyForce docs ([3a8264c](https://github.com/liabru/matter-js/commit/3a8264c))
+* improved delta factors in resolver and constraint stiffness ([9dc6be7](https://github.com/liabru/matter-js/commit/9dc6be7))
+* improved Matter.Body docs for functions and properties including readonly ([85a9eb2](https://github.com/liabru/matter-js/commit/85a9eb2))
+* improved Matter.Engine docs ([50fc8f2](https://github.com/liabru/matter-js/commit/50fc8f2))
+* improved slingshot example constraint ([c6a1a6d](https://github.com/liabru/matter-js/commit/c6a1a6d))
+* improved delta consistency ([87af8a1](https://github.com/liabru/matter-js/commit/87af8a1))
+* improved Example.newtonsCradle ([b2bd492](https://github.com/liabru/matter-js/commit/b2bd492))
+* removed render element warning ([459425b](https://github.com/liabru/matter-js/commit/459425b))
+* removed unused delta params ([a572968](https://github.com/liabru/matter-js/commit/a572968))
+* updated body docs ([6bb2855](https://github.com/liabru/matter-js/commit/6bb2855))
+* updated body velocity properties after resolving ([d52f7e6](https://github.com/liabru/matter-js/commit/d52f7e6))
+* updated Example.manipulation ([5ddac71](https://github.com/liabru/matter-js/commit/5ddac71))
+* updated Example.ragdoll ([ec38638](https://github.com/liabru/matter-js/commit/ec38638))
+* updated Example.staticFriction and Example.timeScale ([11d5e73](https://github.com/liabru/matter-js/commit/11d5e73))
+* updated Matter.Body docs ([db780c3](https://github.com/liabru/matter-js/commit/db780c3))
+* updated timing improvements ([10a2a07](https://github.com/liabru/matter-js/commit/10a2a07))
+* used Body.getVelocity in Matter.Render ([bf90bdd](https://github.com/liabru/matter-js/commit/bf90bdd))
+* used speed getter in Matter.Sleeping and Matter.Render ([6579dfd](https://github.com/liabru/matter-js/commit/6579dfd))
+
+
+
+## 0.18.0 (2021-12-15)
+
+* added test capture sort to improve comparison ([ea3c11b](https://github.com/liabru/matter-js/commit/ea3c11b))
+* added triangles to mixed bodies example ([b116f64](https://github.com/liabru/matter-js/commit/b116f64))
+* added behaviour metric to tests and refactor tests ([8125966](https://github.com/liabru/matter-js/commit/8125966))
+* added benchmark test command ([7f34c45](https://github.com/liabru/matter-js/commit/7f34c45))
+* added broadphase to Matter.Detector ([a6b5e7d](https://github.com/liabru/matter-js/commit/a6b5e7d))
+* added cache checks to Matter.Composite ([32fd285](https://github.com/liabru/matter-js/commit/32fd285))
+* added example for Composite.remove ([bc07f56](https://github.com/liabru/matter-js/commit/bc07f56))
+* added example stress 3 ([d0ee246](https://github.com/liabru/matter-js/commit/d0ee246))
+* added filesize to test comparison report ([b3a8aa3](https://github.com/liabru/matter-js/commit/b3a8aa3))
+* added Matter.Collision ([9037f36](https://github.com/liabru/matter-js/commit/9037f36))
+* added memory comparison to tests ([bedf84c](https://github.com/liabru/matter-js/commit/bedf84c))
+* added note about webpack performance to readme ([80cf76b](https://github.com/liabru/matter-js/commit/80cf76b))
+* added stable sorting to test worker and refactor ([81dd2fb](https://github.com/liabru/matter-js/commit/81dd2fb))
+* added support for build metadata in Plugin.versionParse ([8bfaff0](https://github.com/liabru/matter-js/commit/8bfaff0))
+* changed raycasting example events to enable use in tests ([10afaea](https://github.com/liabru/matter-js/commit/10afaea))
+* changed build config to 'source-map' devtool ([e909b04](https://github.com/liabru/matter-js/commit/e909b04))
+* changed tests to use a production build rather than source ([55feb89](https://github.com/liabru/matter-js/commit/55feb89))
+* deprecated Matter.Grid ([e366d0e](https://github.com/liabru/matter-js/commit/e366d0e))
+* fixed sync issues on demo compare tool ([826ed46](https://github.com/liabru/matter-js/commit/826ed46))
+* improved performance measurement accuracy in tests ([cd289ec](https://github.com/liabru/matter-js/commit/cd289ec))
+* improved test comparison report ([de04c00](https://github.com/liabru/matter-js/commit/de04c00))
+* optimised Matter.Detector ([c7cec16](https://github.com/liabru/matter-js/commit/c7cec16)), ([fd1a70e](https://github.com/liabru/matter-js/commit/fd1a70e)), ([caeb07e](https://github.com/liabru/matter-js/commit/caeb07e)), ([efede6e](https://github.com/liabru/matter-js/commit/efede6e))
+* optimised Matter.Composite ([52e7977](https://github.com/liabru/matter-js/commit/52e7977))
+* optimised Matter.Pair ([d8a6380](https://github.com/liabru/matter-js/commit/d8a6380)), ([48673db](https://github.com/liabru/matter-js/commit/48673db)), ([1073dde](https://github.com/liabru/matter-js/commit/1073dde))
+* optimised Matter.Pairs ([a30707f](https://github.com/liabru/matter-js/commit/a30707f)), ([a882a74](https://github.com/liabru/matter-js/commit/a882a74))
+* optimised Matter.Resolver ([fceb0ca](https://github.com/liabru/matter-js/commit/fceb0ca)), ([49fbfba](https://github.com/liabru/matter-js/commit/49fbfba)), ([0b07a31](https://github.com/liabru/matter-js/commit/0b07a31)), ([f847f4c](https://github.com/liabru/matter-js/commit/f847f4c)), ([3cf65e8](https://github.com/liabru/matter-js/commit/3cf65e8)), ([30b899c](https://github.com/liabru/matter-js/commit/30b899c)), ([e4b35d3](https://github.com/liabru/matter-js/commit/e4b35d3))
+* optimised Matter.SAT ([0d90a17](https://github.com/liabru/matter-js/commit/0d90a17)), ([2096961](https://github.com/liabru/matter-js/commit/2096961)), ([0af144c](https://github.com/liabru/matter-js/commit/0af144c))
+* optimised Matter.Vertices ([c198878](https://github.com/liabru/matter-js/commit/c198878)), ([6883d0d](https://github.com/liabru/matter-js/commit/6883d0d)), ([792ae2e](https://github.com/liabru/matter-js/commit/792ae2e))
+* refactor test worker and prevent test cache ([ca2fe75](https://github.com/liabru/matter-js/commit/ca2fe75)), ([bcc3168](https://github.com/liabru/matter-js/commit/bcc3168))
+* replaced Matter.SAT with Matter.Collision ([b9e7d9d](https://github.com/liabru/matter-js/commit/b9e7d9d))
+* show debug stats in dev demo ([2f14ec5](https://github.com/liabru/matter-js/commit/2f14ec5))
+* updated dev dependencies ([c5028d5](https://github.com/liabru/matter-js/commit/c5028d5))
+* updated examples ([c80ed5c](https://github.com/liabru/matter-js/commit/c80ed5c))
+* updated test scripts ([afa467a](https://github.com/liabru/matter-js/commit/afa467a))
+* use force exit in tests ([8adf810](https://github.com/liabru/matter-js/commit/8adf810))
+* use Matter.Runner in test worker ([2581595](https://github.com/liabru/matter-js/commit/2581595))
+
+
+
+## <small>0.17.1 (2021-04-14)</small>
+
+* deprecate Engine.run alias replaced by Runner.run ([5817046](https://github.com/liabru/matter-js/commit/5817046))
+
+
+
+## 0.17.0 (2021-04-11)
+
+* add Common.setDecomp and Common.getDecomp ([313c150](https://github.com/liabru/matter-js/commit/313c150))
+* add demo build config and refactor demo ([653a647](https://github.com/liabru/matter-js/commit/653a647))
+* add docs for all Matter.Render options ([ec3eecc](https://github.com/liabru/matter-js/commit/ec3eecc))
+* add title to all examples ([f4d72ba](https://github.com/liabru/matter-js/commit/f4d72ba))
+* added Common.deprecated ([ffa3193](https://github.com/liabru/matter-js/commit/ffa3193))
+* added Common.warnOnce ([6957dbf](https://github.com/liabru/matter-js/commit/6957dbf))
+* added Date.now fallback to Common.now, closes #739 ([c06c107](https://github.com/liabru/matter-js/commit/c06c107)), closes [#739](https://github.com/liabru/matter-js/issues/739)
+* added debug stats and performance monitoring to Matter.Render ([119881b](https://github.com/liabru/matter-js/commit/119881b))
+* added doc watch script ([164456b](https://github.com/liabru/matter-js/commit/164456b))
+* added docs for additional engine timing and render properties ([8017bdb](https://github.com/liabru/matter-js/commit/8017bdb))
+* added Example.stats ([9915007](https://github.com/liabru/matter-js/commit/9915007))
+* added lastDelta and lastElapsed to engine.timing ([6dc703f](https://github.com/liabru/matter-js/commit/6dc703f))
+* build demo ([0816454](https://github.com/liabru/matter-js/commit/0816454))
+* change all examples to use Composite.add instead of the alias World.add ([a3f298f](https://github.com/liabru/matter-js/commit/a3f298f))
+* changed engine.broadphase to engine.grid ([b74e400](https://github.com/liabru/matter-js/commit/b74e400))
+* changed Example.views to use render events ([3ac3498](https://github.com/liabru/matter-js/commit/3ac3498))
+* changed world.gravity to engine.gravity ([6abb3b7](https://github.com/liabru/matter-js/commit/6abb3b7))
+* deprecated Composites.car and added to car example ([cd9c5d4](https://github.com/liabru/matter-js/commit/cd9c5d4))
+* deprecated Composites.newtonsCradle and added to newtonsCradle example ([9ad980b](https://github.com/liabru/matter-js/commit/9ad980b))
+* deprecated Composites.softBody and added to softBody and cloth examples ([818f354](https://github.com/liabru/matter-js/commit/818f354))
+* improve Render.debug ([1753bf0](https://github.com/liabru/matter-js/commit/1753bf0))
+* migrate Matter.World to the equivalent Matter.Composite ([5dbec9b](https://github.com/liabru/matter-js/commit/5dbec9b))
+* remove deprecated backwards compatibility engine events from Matter.Runner ([76bf80e](https://github.com/liabru/matter-js/commit/76bf80e))
+* remove deprecated backwards compatibility render integration from Matter.Engine ([1aa8ed0](https://github.com/liabru/matter-js/commit/1aa8ed0))
+* remove deprecated backwards compatibility render integration from Matter.Runner ([6805f85](https://github.com/liabru/matter-js/commit/6805f85))
+* remove deprecated Matter.Metrics ([63a9e98](https://github.com/liabru/matter-js/commit/63a9e98))
+* remove deprecated Matter.RenderPixi ([08a515b](https://github.com/liabru/matter-js/commit/08a515b))
+* remove unused render shadow function ([e49834d](https://github.com/liabru/matter-js/commit/e49834d))
+* run all examples in browser tests ([5734bfd](https://github.com/liabru/matter-js/commit/5734bfd))
+* set render showDebug option on examples stress and stress2 ([f2ef3aa](https://github.com/liabru/matter-js/commit/f2ef3aa))
+* update matter-tools ([f8d366a](https://github.com/liabru/matter-js/commit/f8d366a))
+
+
+
+## <small>0.16.1 (2021-01-31)</small>
+
+* add log capture and reporting in tests ([7bfd3c2](https://github.com/liabru/matter-js/commit/7bfd3c2))
+* add matter-wrap as dev dependency ([ef7c4c6](https://github.com/liabru/matter-js/commit/ef7c4c6))
+* catch missing plugin require in examples ([1ba1255](https://github.com/liabru/matter-js/commit/1ba1255))
+* change example matter-wrap require precedence ([aa1e4e7](https://github.com/liabru/matter-js/commit/aa1e4e7))
+* change perf threshold in test ([7b00354](https://github.com/liabru/matter-js/commit/7b00354))
+* change test worker decomp require ([5e746b0](https://github.com/liabru/matter-js/commit/5e746b0))
+* disable jest cache ([8ee0ebb](https://github.com/liabru/matter-js/commit/8ee0ebb))
+* enable useful dev server features ([839f7d9](https://github.com/liabru/matter-js/commit/839f7d9))
+* fix decomp require and improve warning message ([e87f64a](https://github.com/liabru/matter-js/commit/e87f64a))
+* fix dev server externals ([1f2f9fe](https://github.com/liabru/matter-js/commit/1f2f9fe))
+* fix named require in test ([92080ff](https://github.com/liabru/matter-js/commit/92080ff))
+* improve CI speed ([1af64eb](https://github.com/liabru/matter-js/commit/1af64eb))
+* improve docs for Bodies.fromVertices ([2ade78f](https://github.com/liabru/matter-js/commit/2ade78f))
+* improve stack examples with exact contact ([522f4e8](https://github.com/liabru/matter-js/commit/522f4e8))
+* improve test report log ([b5326f8](https://github.com/liabru/matter-js/commit/b5326f8))
+
+
+
+## 0.16.0 (2021-01-17)
+
+* added removeDuplicatePoints option from poly-decomp 0.3.0 to Bodies.fromVertices ([#639](https://github.com/liabru/matter-js/issues/639), [947cb97](https://github.com/liabru/matter-js/commit/947cb97), [a9694e6](https://github.com/liabru/matter-js/commit/a9694e6))
+* added support for > and >= operators in plugin version ranges ([0792716](https://github.com/liabru/matter-js/commit/0792716))
+* added support for example versioning in tests ([31d0ace](https://github.com/liabru/matter-js/commit/31d0ace))
+* added version targets for examples ([142b7de](https://github.com/liabru/matter-js/commit/142b7de))
+* added warning check on browser tests ([12377cc](https://github.com/liabru/matter-js/commit/12377cc))
+* changed svg and terrain example to use fetch ([5551cd5](https://github.com/liabru/matter-js/commit/5551cd5))
+* changed deprecated comments to avoid confusion ([1e73cab](https://github.com/liabru/matter-js/commit/1e73cab))
+* fixed poly-decomp external require ([882e07c](https://github.com/liabru/matter-js/commit/882e07c))
+* removed bower.json ([f71d4c0](https://github.com/liabru/matter-js/commit/f71d4c0))
+* removed unused dev dependency run-sequence ([be592fd](https://github.com/liabru/matter-js/commit/be592fd))
+* updated dev dependencies ([151eb30](https://github.com/liabru/matter-js/commit/151eb30))
+* updated matter-tools ([5c66458](https://github.com/liabru/matter-js/commit/5c66458))
+* updated matter-tools ([33e8fe8](https://github.com/liabru/matter-js/commit/33e8fe8))
+* updated demo matter-tools ([a694ae5](https://github.com/liabru/matter-js/commit/a694ae5))
+* updated demo pathseg ([9c5325b](https://github.com/liabru/matter-js/commit/9c5325b))
+* updated readme ([3089b41](https://github.com/liabru/matter-js/commit/3089b41))
+
+
+
+## 0.15.0 (2020-12-24)
+
+* add window global, stub require and handle bad values in test tools ([497ac80](https://github.com/liabru/matter-js/commit/497ac80))
+* added Body.setCentre, closes #684, closes #461, closes #679 ([2ec247b](https://github.com/liabru/matter-js/commit/2ec247b)), closes [#684](https://github.com/liabru/matter-js/issues/684) [#461](https://github.com/liabru/matter-js/issues/461) [#679](https://github.com/liabru/matter-js/issues/679)
+* added browser tests ([ceb7cd5](https://github.com/liabru/matter-js/commit/ceb7cd5))
+* Added build comparison tools and tests ([b7c938a](https://github.com/liabru/matter-js/commit/b7c938a))
+* added check for window in Common.now ([9ef9d02](https://github.com/liabru/matter-js/commit/9ef9d02))
+* added comparison output file option to test tools ([45aae25](https://github.com/liabru/matter-js/commit/45aae25))
+* Added config and test files to lint ([21e4ea6](https://github.com/liabru/matter-js/commit/21e4ea6))
+* added Constraint.pointAWorld and Constraint.pointBWorld ([3c32969](https://github.com/liabru/matter-js/commit/3c32969))
+* added examples to dev server bundle and commit built examples ([fe80478](https://github.com/liabru/matter-js/commit/fe80478))
+* added module export to examples ([f9ea799](https://github.com/liabru/matter-js/commit/f9ea799))
+* added overlap metric to test tools ([3fd674d](https://github.com/liabru/matter-js/commit/3fd674d))
+* added release scripts ([341c247](https://github.com/liabru/matter-js/commit/341c247))
+* added tag push to release task ([060283b](https://github.com/liabru/matter-js/commit/060283b))
+* added timing to engine snapshot ([e0cdbb8](https://github.com/liabru/matter-js/commit/e0cdbb8))
+* Added watch content base to dev server ([f471d4e](https://github.com/liabru/matter-js/commit/f471d4e))
+* added webpack build script ([046013e](https://github.com/liabru/matter-js/commit/046013e))
+* changed alpha build configuration ([182c84a](https://github.com/liabru/matter-js/commit/182c84a))
+* changed demo to auto populate examples with sourceLink and init ([5b0d34b](https://github.com/liabru/matter-js/commit/5b0d34b))
+* changed demo to serve without sub-directory ([823bbc0](https://github.com/liabru/matter-js/commit/823bbc0))
+* changed docs build config ([864452d](https://github.com/liabru/matter-js/commit/864452d))
+* changed example tests to use jest ([104d319](https://github.com/liabru/matter-js/commit/104d319))
+* fix decomp import in Bodies.fromVertices ([94e9614](https://github.com/liabru/matter-js/commit/94e9614))
+* fix decomp require ([0af1645](https://github.com/liabru/matter-js/commit/0af1645))
+* fix issues with render pixel ratio, closes #686, closes #687 ([d577477](https://github.com/liabru/matter-js/commit/d577477)), closes [#686](https://github.com/liabru/matter-js/issues/686) [#687](https://github.com/liabru/matter-js/issues/687)
+* fix lint ([5a0079d](https://github.com/liabru/matter-js/commit/5a0079d))
+* fix lint issues ([9ca21c1](https://github.com/liabru/matter-js/commit/9ca21c1))
+* fix path to build in test worker ([fcdb4fa](https://github.com/liabru/matter-js/commit/fcdb4fa))
+* fix preversion script ([c368c14](https://github.com/liabru/matter-js/commit/c368c14))
+* fix terrain example module export ([4a967ec](https://github.com/liabru/matter-js/commit/4a967ec))
+* Fix typo in docs ([c486635](https://github.com/liabru/matter-js/commit/c486635))
+* fixed plugins in compare ([82bb415](https://github.com/liabru/matter-js/commit/82bb415))
+* implemented threaded comparison testing ([285d70d](https://github.com/liabru/matter-js/commit/285d70d))
+* Optimized Body's hidden class ([b3220cf](https://github.com/liabru/matter-js/commit/b3220cf))
+* Optimized Events.trigger method when no event is emitted ([b17cb48](https://github.com/liabru/matter-js/commit/b17cb48))
+* remove gulp ([6a28090](https://github.com/liabru/matter-js/commit/6a28090))
+* remove old demo libs ([13c7eb5](https://github.com/liabru/matter-js/commit/13c7eb5))
+* removed unused gulp release tasks ([e5a7311](https://github.com/liabru/matter-js/commit/e5a7311))
+* removed yuidocjs dev dependency ([ee848d2](https://github.com/liabru/matter-js/commit/ee848d2))
+* Set loose build version on dev server ([1fcf292](https://github.com/liabru/matter-js/commit/1fcf292))
+* update build script ([90abab6](https://github.com/liabru/matter-js/commit/90abab6))
+* update default render theme ([d258411](https://github.com/liabru/matter-js/commit/d258411))
+* update demo and example render styles ([6dd5ec5](https://github.com/liabru/matter-js/commit/6dd5ec5))
+* update dependencies ([e1e058c](https://github.com/liabru/matter-js/commit/e1e058c)) ([5f5b8a1](https://github.com/liabru/matter-js/commit/5f5b8a1))
+* update examples build config and scripts ([69afb11](https://github.com/liabru/matter-js/commit/69afb11))
+* update package lock ([ac3da07](https://github.com/liabru/matter-js/commit/ac3da07))
+* updated build scripts ([6b698ea](https://github.com/liabru/matter-js/commit/6b698ea))
+* updated ci ([288b9cd](https://github.com/liabru/matter-js/commit/288b9cd))
+* updated docs ([50cf171](https://github.com/liabru/matter-js/commit/50cf171))
+* updated readme ([ea5c012](https://github.com/liabru/matter-js/commit/ea5c012)) ([61b1963](https://github.com/liabru/matter-js/commit/61b1963))
+
+
+
+<a name="0.14.2"></a>
+## <small>0.14.2 (2018-06-11)</small>
+
+* added missing polyfill warning to Svg.pathToVertices ([511de5b](https://github.com/liabru/matter-js/commit/511de5b))
+* fix Composite.bounds global issue, closes #627, closes #544 ([f7f77b4](https://github.com/liabru/matter-js/commit/f7f77b4)), closes [#627](https://github.com/liabru/matter-js/issues/627) [#544](https://github.com/liabru/matter-js/issues/544)
+* fix docs for Vector.angle, closes #471 ([db30d79](https://github.com/liabru/matter-js/commit/db30d79)), closes [#471](https://github.com/liabru/matter-js/issues/471)
+* Fixed constraint pointB documentation ([0b5ce1d](https://github.com/liabru/matter-js/commit/0b5ce1d))
+* fixed require for external libraries, closes #629, closes #559, closes #593, closes #365, closes #62 ([0cf97f5](https://github.com/liabru/matter-js/commit/0cf97f5)), closes [#629](https://github.com/liabru/matter-js/issues/629) [#559](https://github.com/liabru/matter-js/issues/559) [#593](https://github.com/liabru/matter-js/issues/593) [#365](https://github.com/liabru/matter-js/issues/365) [#629](https://github.com/liabru/matter-js/issues/629)
+* remove browserify-shim ([e3c176e](https://github.com/liabru/matter-js/commit/e3c176e))
+* updated pathseg library, closes #548, closes #602, closes #424 ([1e5758f](https://github.com/liabru/matter-js/commit/1e5758f)), closes [#548](https://github.com/liabru/matter-js/issues/548) [#602](https://github.com/liabru/matter-js/issues/602) [#424](https://github.com/liabru/matter-js/issues/424)
+
+
+
+<a name="0.14.1"></a>
+## 0.14.1 (2018-01-10)
+
+* fix Common.isElement on node, closes #535 ([ec38eeb](https://github.com/liabru/matter-js/commit/ec38eeb)), closes [#535](https://github.com/liabru/matter-js/issues/535)
+
+
+
+<a name="0.14.0"></a>
+# 0.14.0 (2017-11-30)
+
+* added .eslintignore ([2279e15](https://github.com/liabru/matter-js/commit/2279e15))
+* added examples build task ([6108a31](https://github.com/liabru/matter-js/commit/6108a31))
+* added missing docs for Matter.World aliases ([841bf97](https://github.com/liabru/matter-js/commit/841bf97))
+* added Query.collides, closes #478 ([6593a72](https://github.com/liabru/matter-js/commit/6593a72)), closes [#478](https://github.com/liabru/matter-js/issues/478)
+* change examples to render using a fixed resolution ([0895d81](https://github.com/liabru/matter-js/commit/0895d81))
+* Do not warn on missing render.element if the canvas is already parented (because it was passed in at ([a529ec9](https://github.com/liabru/matter-js/commit/a529ec9))
+* fix `point` argument of Body.scale, closes #428 ([894c1ef](https://github.com/liabru/matter-js/commit/894c1ef)), closes [#428](https://github.com/liabru/matter-js/issues/428)
+* fix Body.scale for compound bodies ([50a89d0](https://github.com/liabru/matter-js/commit/50a89d0))
+* fix centroid for static compound bodies, closes #483 ([ece66e6](https://github.com/liabru/matter-js/commit/ece66e6)), closes [#483](https://github.com/liabru/matter-js/issues/483)
+* fix Common.isElement, closes #501, closes #507, closes #459, closes #468, closes #517 ([18a0845](https://github.com/liabru/matter-js/commit/18a0845)), closes [#501](https://github.com/liabru/matter-js/issues/501) [#507](https://github.com/liabru/matter-js/issues/507) [#459](https://github.com/liabru/matter-js/issues/459) [#468](https://github.com/liabru/matter-js/issues/468) [#517](https://github.com/liabru/matter-js/issues/517)
+* fix inertia change in Body.setMass, closes #378 ([f7d1877](https://github.com/liabru/matter-js/commit/f7d1877)), closes [#378](https://github.com/liabru/matter-js/issues/378)
+* fix Vertices.chamfer radius argument, closes #467 ([3bceef4](https://github.com/liabru/matter-js/commit/3bceef4)), closes [#467](https://github.com/liabru/matter-js/issues/467)
+* improved docs for constraints on compound bodies, closes #442 ([3307760](https://github.com/liabru/matter-js/commit/3307760)), closes [#442](https://github.com/liabru/matter-js/issues/442)
+* moved all private functions to module namespaces ([64be5a5](https://github.com/liabru/matter-js/commit/64be5a5))
+* moved private Matter.Engine functions on to namespace, closes #523 ([9eae36f](https://github.com/liabru/matter-js/commit/9eae36f)), closes [#523](https://github.com/liabru/matter-js/issues/523)
+* remove spelling mistake ([e5c4b47](https://github.com/liabru/matter-js/commit/e5c4b47))
+
+
+
+<a name="0.13.0"></a>
+# 0.13.0 (2017-07-06)
+
+* added Composite.bounds ([79ffcf8](https://github.com/liabru/matter-js/commit/79ffcf8))
+* added constraint damping ([44c4d1f](https://github.com/liabru/matter-js/commit/44c4d1f))
+* added constraint.render.type and constraint.render.anchor ([0952516](https://github.com/liabru/matter-js/commit/0952516))
+* added Example.constraints ([b93c08f](https://github.com/liabru/matter-js/commit/b93c08f))
+* added Example.doublePendulum ([a7aa47d](https://github.com/liabru/matter-js/commit/a7aa47d))
+* added Examples.ragdoll ([48611c5](https://github.com/liabru/matter-js/commit/48611c5))
+* added optional output argument to Vector.rotate ([59d62be](https://github.com/liabru/matter-js/commit/59d62be))
+* added rotation point parameter to Body.rotate, closes #410 ([749ed50](https://github.com/liabru/matter-js/commit/749ed50)), closes [#410](https://github.com/liabru/matter-js/issues/410)
+* added second pass for constraint solving ([f49d053](https://github.com/liabru/matter-js/commit/f49d053))
+* change constraint solve order ([a5bd6b2](https://github.com/liabru/matter-js/commit/a5bd6b2))
+* changed lint rules ([d1fbe95](https://github.com/liabru/matter-js/commit/d1fbe95))
+* fix constraint.angularStiffness ([ab0283b](https://github.com/liabru/matter-js/commit/ab0283b))
+* fix Example.collisionFiltering rendering ([74a7cfc](https://github.com/liabru/matter-js/commit/74a7cfc))
+* fix lint errors ([774d8bc](https://github.com/liabru/matter-js/commit/774d8bc))
+* fix soft body stiffness ([1bae2de](https://github.com/liabru/matter-js/commit/1bae2de))
+* fixed Common.now ([2b76c4c](https://github.com/liabru/matter-js/commit/2b76c4c))
+* fixed constraint torque calculation ([a8d1950](https://github.com/liabru/matter-js/commit/a8d1950))
+* fixed constraint torque calculation ([068fdc0](https://github.com/liabru/matter-js/commit/068fdc0))
+* fixed Examples.compound constraint offset ([e6babf0](https://github.com/liabru/matter-js/commit/e6babf0))
+* fixed various constraints in examples ([ac67ef8](https://github.com/liabru/matter-js/commit/ac67ef8))
+* fixed various problems with constraints ([26a60e4](https://github.com/liabru/matter-js/commit/26a60e4))
+* implemented constraint warming ([daf26af](https://github.com/liabru/matter-js/commit/daf26af))
+* improved Example.car using pin constraint ([130e6b3](https://github.com/liabru/matter-js/commit/130e6b3))
+* improved Example.catapult using pin constraint ([0e15099](https://github.com/liabru/matter-js/commit/0e15099))
+* improved Example.chains using pin constraint ([9d2f0ff](https://github.com/liabru/matter-js/commit/9d2f0ff))
+* improved Examples.bridge ([b277b39](https://github.com/liabru/matter-js/commit/b277b39))
+* improved Examples.bridge ([b6e5973](https://github.com/liabru/matter-js/commit/b6e5973))
+* improved position resolver ([71998a0](https://github.com/liabru/matter-js/commit/71998a0))
+* improved spring and pin rendering ([837c43b](https://github.com/liabru/matter-js/commit/837c43b))
+* refactored Common.isElement ([295cffe](https://github.com/liabru/matter-js/commit/295cffe))
+* removed Common.shadeColor ([d63b0c2](https://github.com/liabru/matter-js/commit/d63b0c2))
+* tweaked Example.doublePendulum ([4894008](https://github.com/liabru/matter-js/commit/4894008))
+* update alpha build ([fe9b05d](https://github.com/liabru/matter-js/commit/fe9b05d))
+* update alpha build ([b874f4d](https://github.com/liabru/matter-js/commit/b874f4d))
+* update alpha build ([08aa3f2](https://github.com/liabru/matter-js/commit/08aa3f2))
+* update readme and remove redundant plugins ([2560a68](https://github.com/liabru/matter-js/commit/2560a68))
+* Update README.md ([4168d3c](https://github.com/liabru/matter-js/commit/4168d3c))
+* updated license and contributing ([d2af721](https://github.com/liabru/matter-js/commit/d2af721))
+* updated readme ([26c1200](https://github.com/liabru/matter-js/commit/26c1200))
+* upgraded matter-tools ([477f2d7](https://github.com/liabru/matter-js/commit/477f2d7))
+* upgraded matter-wrap ([c9294eb](https://github.com/liabru/matter-js/commit/c9294eb))
+
+
+
+<a name="0.12.0"></a>
+# 0.12.0 (2017-02-02)
+
+* add poly-decamp require shim ([c72a9d0](https://github.com/liabru/matter-js/commit/c72a9d0))
+* added body.plugin, composite.plugin, constraint.plugin, engine.plugin properties ([b353393](https://github.com/liabru/matter-js/commit/b353393))
+* added Render.lookAt ([47443b3](https://github.com/liabru/matter-js/commit/47443b3))
+* added Render.startViewTransform and Render.endViewTransform ([c8e5d5c](https://github.com/liabru/matter-js/commit/c8e5d5c))
+* change Matter.MouseConstraint to use engine beforeUpdate event, closes #73 ([ffb128c](https://github.com/liabru/matter-js/commit/ffb128c)), closes [#73](https://github.com/liabru/matter-js/issues/73)
+* changed default render styles ([719ad64](https://github.com/liabru/matter-js/commit/719ad64))
+* changed plugins to use body.plugin ([3fdf343](https://github.com/liabru/matter-js/commit/3fdf343))
+* fix Body.setStatic(body, false), closes #187 ([a815ce4](https://github.com/liabru/matter-js/commit/a815ce4)), closes [#187](https://github.com/liabru/matter-js/issues/187)
+* fix build temporarily ([805ff2a](https://github.com/liabru/matter-js/commit/805ff2a))
+* fix lint ([0ce686d](https://github.com/liabru/matter-js/commit/0ce686d))
+* fix lint ([714b8ae](https://github.com/liabru/matter-js/commit/714b8ae))
+* fix Render.grid ([dd83386](https://github.com/liabru/matter-js/commit/dd83386))
+* fix test npm script ([6285df9](https://github.com/liabru/matter-js/commit/6285df9))
+* fix v8 optimisation issues ([86c4a61](https://github.com/liabru/matter-js/commit/86c4a61))
+* Fixes #220 ([74de894](https://github.com/liabru/matter-js/commit/74de894)), closes [#220](https://github.com/liabru/matter-js/issues/220)
+* improved demo and examples ([1a40f27](https://github.com/liabru/matter-js/commit/1a40f27))
+* improved demo and examples ([ace1a9f](https://github.com/liabru/matter-js/commit/ace1a9f))
+* improved demo and examples ([8cdbb38](https://github.com/liabru/matter-js/commit/8cdbb38))
+* Update to latest poly-decomp.js API ([3d8f88e](https://github.com/liabru/matter-js/commit/3d8f88e))
+* updated alpha build ([6c19f0b](https://github.com/liabru/matter-js/commit/6c19f0b))
+* updated dependencies ([8c140bd](https://github.com/liabru/matter-js/commit/8c140bd))
+* updated matter-tools ([def8d22](https://github.com/liabru/matter-js/commit/def8d22))
+
+
+
+<a name="0.11.1"></a>
+## 0.11.1 (2016-11-09)
+
+
+* added derequire to build ([ded796c](https://github.com/liabru/matter-js/commit/ded796c))
+
+
+
+<a name="0.11.0"></a>
+# 0.11.0 (2016-11-04)
+
+
+* add logo to readme ([d54dec3](https://github.com/liabru/matter-js/commit/d54dec3))
+* added docs for Matter.Plugin with tweaks ([3883981](https://github.com/liabru/matter-js/commit/3883981))
+* added Example.attractors ([758bbe8](https://github.com/liabru/matter-js/commit/758bbe8))
+* added Matter.before, Matter.after, Common.chainPathBefore, Common.chainPathAfter, Common.get, Common ([50ad7ca](https://github.com/liabru/matter-js/commit/50ad7ca))
+* added Matter.Plugin initial implementation ([e84c537](https://github.com/liabru/matter-js/commit/e84c537))
+* added note in docs about vertices order ([ad033f5](https://github.com/liabru/matter-js/commit/ad033f5))
+* added plugin status logging ([51b7b1d](https://github.com/liabru/matter-js/commit/51b7b1d))
+* added plugins matter-attractors, matter-gravity, matter-world-wrap, removed test plugins ([59bfa0b](https://github.com/liabru/matter-js/commit/59bfa0b))
+* change plugins to use best practices ([37d4258](https://github.com/liabru/matter-js/commit/37d4258))
+* change travis node version to latest stable ([ee33686](https://github.com/liabru/matter-js/commit/ee33686))
+* changed naming approach for prerelease versions ([83ae546](https://github.com/liabru/matter-js/commit/83ae546))
+* fix build flags ([29d182c](https://github.com/liabru/matter-js/commit/29d182c))
+* fix build task for travis ([6aa3661](https://github.com/liabru/matter-js/commit/6aa3661))
+* fix gravity reset in demo ([c00df81](https://github.com/liabru/matter-js/commit/c00df81))
+* fix gulp build version replacement ([faf6bec](https://github.com/liabru/matter-js/commit/faf6bec))
+* fix Matter.Mouse when element does not have fixed dimensions, closes #73 ([1340159](https://github.com/liabru/matter-js/commit/1340159)), closes [#73](https://github.com/liabru/matter-js/issues/73)
+* fix release tasks ([549983d](https://github.com/liabru/matter-js/commit/549983d))
+* fix requestAnimationFrame polyfill for Matter.Runner, closes #252 ([7c8f6ce](https://github.com/liabru/matter-js/commit/7c8f6ce)), closes [#252](https://github.com/liabru/matter-js/issues/252)
+* fix tests ([54e7d9c](https://github.com/liabru/matter-js/commit/54e7d9c))
+* fixed Body.create with no options ([0e5a457](https://github.com/liabru/matter-js/commit/0e5a457))
+* fixed issue with Matter.RenderPixi not being cleared when bodies removed, closes #218 ([4972af8](https://github.com/liabru/matter-js/commit/4972af8)), closes [#218](https://github.com/liabru/matter-js/issues/218)
+* fixed various Matter.Plugin issues ([05d0961](https://github.com/liabru/matter-js/commit/05d0961))
+* improve docs ([9856e3c](https://github.com/liabru/matter-js/commit/9856e3c))
+* improved logging ([d4d64ed](https://github.com/liabru/matter-js/commit/d4d64ed))
+* Limit packaging extraneous files ([3accec6](https://github.com/liabru/matter-js/commit/3accec6))
+* Merge branch 'jackismissing-master' ([3452465](https://github.com/liabru/matter-js/commit/3452465))
+* Merge branch 'master' of https://github.com/jackismissing/matter-js into jackismissing-master ([ba19130](https://github.com/liabru/matter-js/commit/ba19130))
+* Merge branch 'plugins' ([60d0839](https://github.com/liabru/matter-js/commit/60d0839))
+* Merge pull request #1 from jackismissing/jackismissing-patch-1 ([46a2bf6](https://github.com/liabru/matter-js/commit/46a2bf6))
+* Merge pull request #244 from MarkHerhold/master ([3449ca5](https://github.com/liabru/matter-js/commit/3449ca5))
+* refactor plugin system ([8da170f](https://github.com/liabru/matter-js/commit/8da170f))
+* refactored plugins ([b4a3453](https://github.com/liabru/matter-js/commit/b4a3453))
+* remove and ignore all test refs ([7a7187a](https://github.com/liabru/matter-js/commit/7a7187a))
+* RenderPixi.js - added missing dependencies ([aec19ae](https://github.com/liabru/matter-js/commit/aec19ae))
+* update Matter.Plugin docs ([6f8b705](https://github.com/liabru/matter-js/commit/6f8b705))
+* updated edge build ([1d05499](https://github.com/liabru/matter-js/commit/1d05499))
+* updated edge build ([0bdaece](https://github.com/liabru/matter-js/commit/0bdaece))
+* updated readme ([a408854](https://github.com/liabru/matter-js/commit/a408854))
+* updated readme ([4da2e25](https://github.com/liabru/matter-js/commit/4da2e25))
+* updated readme ([9ccc028](https://github.com/liabru/matter-js/commit/9ccc028))
+* updated readme ([faf534a](https://github.com/liabru/matter-js/commit/faf534a))
+* updated readme ([5ca9aca](https://github.com/liabru/matter-js/commit/5ca9aca))
+* updated readme ([e3e9080](https://github.com/liabru/matter-js/commit/e3e9080))
+* updated readme ([c4cce9e](https://github.com/liabru/matter-js/commit/c4cce9e))
+* updated readme ([4b5837e](https://github.com/liabru/matter-js/commit/4b5837e))
+* updated readme ([098f224](https://github.com/liabru/matter-js/commit/098f224))
+
+
+
+<a name="0.10.0"></a>
+# 0.10.0 (2016-05-01)
+
+
+* added release:push:docs task ([04cbd1d](https://github.com/liabru/matter-js/commit/04cbd1d))
+* decouple Matter.Render from Matter.Engine ([de823eb](https://github.com/liabru/matter-js/commit/de823eb))
+* decouple Matter.RenderPixi ([72f90b9](https://github.com/liabru/matter-js/commit/72f90b9))
+* deprecated Matter.RenderPixi ([e8c899a](https://github.com/liabru/matter-js/commit/e8c899a))
+* deprecated Matter.RenderPixi ([a6b97cd](https://github.com/liabru/matter-js/commit/a6b97cd))
+* fix tests ([f59e220](https://github.com/liabru/matter-js/commit/f59e220))
+* fix tests ([c26684e](https://github.com/liabru/matter-js/commit/c26684e))
+* Merge branch 'decouple-renderer' ([31067c9](https://github.com/liabru/matter-js/commit/31067c9))
+
+
+
+<a name="0.9.3"></a>
+## 0.9.3 (2016-04-19)
+
+
+* added readonly to docs for type property, closes #235 ([afd7531](https://github.com/liabru/matter-js/commit/afd7531)), closes [#235](https://github.com/liabru/matter-js/issues/235)
+* Engine uses provided world; fixes issue #230 ([158c404](https://github.com/liabru/matter-js/commit/158c404)), closes [#230](https://github.com/liabru/matter-js/issues/230)
+* fix issue with removed bodies causing collisions ([23a773a](https://github.com/liabru/matter-js/commit/23a773a))
+* fix Matter.Engine.create docs to show element param is optional ([e2e7c0b](https://github.com/liabru/matter-js/commit/e2e7c0b))
+* handle missing options in Engine.create ([f36fe2c](https://github.com/liabru/matter-js/commit/f36fe2c))
+* improved release tasks ([e13d2d2](https://github.com/liabru/matter-js/commit/e13d2d2))
+* Merge branch 'master' of github.com:liabru/matter-js ([d373172](https://github.com/liabru/matter-js/commit/d373172))
+* Merge pull request #237 from iamjoshua/master ([b724959](https://github.com/liabru/matter-js/commit/b724959)), closes [#230](https://github.com/liabru/matter-js/issues/230)
+* set release task to default to patch ([9d396fe](https://github.com/liabru/matter-js/commit/9d396fe))
+* updated edge build ([7eb9ac7](https://github.com/liabru/matter-js/commit/7eb9ac7))
+
+
+
+<a name="0.9.2"></a>
+## 0.9.2 (2016-04-07)
+
+
+* Add permeability example and doc entry ([6e7add1](https://github.com/liabru/matter-js/commit/6e7add1))
+* Add permeable objects ([1573359](https://github.com/liabru/matter-js/commit/1573359))
+* Change permeable name to sensors, add isSensor to Pair ([28084b0](https://github.com/liabru/matter-js/commit/28084b0))
+* Document World bounds and Grid bucket size. ([5054c97](https://github.com/liabru/matter-js/commit/5054c97))
+* fix Body.scale for circles, closes #234 ([f428d6b](https://github.com/liabru/matter-js/commit/f428d6b)), closes [#234](https://github.com/liabru/matter-js/issues/234)
+* Fix the out-of-bounds check in grid broadphase ([a20a9fb](https://github.com/liabru/matter-js/commit/a20a9fb))
+* Merge pull request #224 from brollb/223-bounds-ignored-in-renderer ([1944f6a](https://github.com/liabru/matter-js/commit/1944f6a)), closes [#223](https://github.com/liabru/matter-js/issues/223)
+* Merge pull request #231 from Rantanen/patch-1 ([b6f6a03](https://github.com/liabru/matter-js/commit/b6f6a03))
+* Merge pull request #232 from Rantanen/docs ([79fa57e](https://github.com/liabru/matter-js/commit/79fa57e))
+* Merged sensors from Misiur-master ([e1a52d5](https://github.com/liabru/matter-js/commit/e1a52d5))
+* Update README.md ([a5b535d](https://github.com/liabru/matter-js/commit/a5b535d))
+* Update README.md ([a31ab39](https://github.com/liabru/matter-js/commit/a31ab39))
+* Updated `hasBounds` default value. Fixes #223 ([053ea76](https://github.com/liabru/matter-js/commit/053ea76)), closes [#223](https://github.com/liabru/matter-js/issues/223)
+* updated test refs ([93ba111](https://github.com/liabru/matter-js/commit/93ba111))
+
+
+
+<a name="0.9.1"></a>
+## 0.9.1 (2016-02-15)
+
+
+* added default for delta parameter in Engine.update, closes #200 ([490d232](https://github.com/liabru/matter-js/commit/490d232)), closes [#200](https://github.com/liabru/matter-js/issues/200)
+* added docs for body.render.opacity ([adcb610](https://github.com/liabru/matter-js/commit/adcb610))
+* added SVGPathSeg polyfill, closes #196 ([8fcb893](https://github.com/liabru/matter-js/commit/8fcb893)), closes [#196](https://github.com/liabru/matter-js/issues/196)
+* Adding the opacity attribute to be able to draw semi-transarent sprites ([5b755a1](https://github.com/liabru/matter-js/commit/5b755a1))
+* allow passing of pixi objects to Matter.RenderPixi at creation, closes #193 ([dbdabcc](https://github.com/liabru/matter-js/commit/dbdabcc)), closes [#193](https://github.com/liabru/matter-js/issues/193)
+* change main reference in package.json ([633c305](https://github.com/liabru/matter-js/commit/633c305))
+* Changed bounds checking MIN_VALUE to -MAX_VALUE. Fixes #202 ([dd5e260](https://github.com/liabru/matter-js/commit/dd5e260)), closes [#202](https://github.com/liabru/matter-js/issues/202)
+* fix issue with Bodies.circle label option, closes #195 ([e7e8c26](https://github.com/liabru/matter-js/commit/e7e8c26)), closes [#195](https://github.com/liabru/matter-js/issues/195)
+* fix lint issue ([b4e875b](https://github.com/liabru/matter-js/commit/b4e875b))
+* fixed build issue ([bb3d43f](https://github.com/liabru/matter-js/commit/bb3d43f))
+* fixed rendering of angle indicators ([aaffee3](https://github.com/liabru/matter-js/commit/aaffee3))
+* fixed rendering of compound bodies ([99dd6c5](https://github.com/liabru/matter-js/commit/99dd6c5))
+* fixes to body opacity rendering ([8ac06b2](https://github.com/liabru/matter-js/commit/8ac06b2))
+* Merge branch 'master' of https://github.com/ma1069/matter-js into ma1069-master ([c99e6af](https://github.com/liabru/matter-js/commit/c99e6af))
+* Merge pull request #199 from kevinboudot/master ([34fa27a](https://github.com/liabru/matter-js/commit/34fa27a))
+* remove redundant console.log from gulpfile ([b5006e3](https://github.com/liabru/matter-js/commit/b5006e3))
+* Update README.md ([1bfb758](https://github.com/liabru/matter-js/commit/1bfb758))
+* updated edge build ([cc80837](https://github.com/liabru/matter-js/commit/cc80837))
+* updated test refs ([cfdc0b3](https://github.com/liabru/matter-js/commit/cfdc0b3))
+* updated test refs ([4d65dd1](https://github.com/liabru/matter-js/commit/4d65dd1))
+
+
+
 <a name="0.9.0"></a>
 # 0.9.0 (2016-01-16)
 

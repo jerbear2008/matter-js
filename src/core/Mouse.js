@@ -34,7 +34,7 @@ var Common = require('../core/Common');
         mouse.scale = { x: 1, y: 1 };
         mouse.wheelDelta = 0;
         mouse.button = -1;
-        mouse.pixelRatio = mouse.element.getAttribute('data-pixel-ratio') || 1;
+        mouse.pixelRatio = parseInt(mouse.element.getAttribute('data-pixel-ratio'), 10) || 1;
 
         mouse.sourceEvents = {
             mousemove: null,
@@ -44,7 +44,7 @@ var Common = require('../core/Common');
         };
         
         mouse.mousemove = function(event) { 
-            var position = _getRelativeMousePosition(event, mouse.element, mouse.pixelRatio),
+            var position = Mouse._getRelativeMousePosition(event, mouse.element, mouse.pixelRatio),
                 touches = event.changedTouches;
 
             if (touches) {
@@ -60,7 +60,7 @@ var Common = require('../core/Common');
         };
         
         mouse.mousedown = function(event) {
-            var position = _getRelativeMousePosition(event, mouse.element, mouse.pixelRatio),
+            var position = Mouse._getRelativeMousePosition(event, mouse.element, mouse.pixelRatio),
                 touches = event.changedTouches;
 
             if (touches) {
@@ -80,7 +80,7 @@ var Common = require('../core/Common');
         };
         
         mouse.mouseup = function(event) {
-            var position = _getRelativeMousePosition(event, mouse.element, mouse.pixelRatio),
+            var position = Mouse._getRelativeMousePosition(event, mouse.element, mouse.pixelRatio),
                 touches = event.changedTouches;
 
             if (touches) {
@@ -100,6 +100,7 @@ var Common = require('../core/Common');
         mouse.mousewheel = function(event) {
             mouse.wheelDelta = Math.max(-1, Math.min(1, event.wheelDelta || -event.detail));
             event.preventDefault();
+            mouse.sourceEvents.mousewheel = event;
         };
 
         Mouse.setElement(mouse, mouse.element);
@@ -116,16 +117,15 @@ var Common = require('../core/Common');
     Mouse.setElement = function(mouse, element) {
         mouse.element = element;
 
-        element.addEventListener('mousemove', mouse.mousemove);
-        element.addEventListener('mousedown', mouse.mousedown);
-        element.addEventListener('mouseup', mouse.mouseup);
+        element.addEventListener('mousemove', mouse.mousemove, { passive: true });
+        element.addEventListener('mousedown', mouse.mousedown, { passive: true });
+        element.addEventListener('mouseup', mouse.mouseup, { passive: true });
         
-        element.addEventListener('mousewheel', mouse.mousewheel);
-        element.addEventListener('DOMMouseScroll', mouse.mousewheel);
-
-        element.addEventListener('touchmove', mouse.mousemove);
-        element.addEventListener('touchstart', mouse.mousedown);
-        element.addEventListener('touchend', mouse.mouseup);
+        element.addEventListener('wheel', mouse.mousewheel, { passive: false });
+        
+        element.addEventListener('touchmove', mouse.mousemove, { passive: false });
+        element.addEventListener('touchstart', mouse.mousedown, { passive: false });
+        element.addEventListener('touchend', mouse.mouseup, { passive: false });
     };
 
     /**
@@ -176,7 +176,7 @@ var Common = require('../core/Common');
      * @param {number} pixelRatio
      * @return {}
      */
-    var _getRelativeMousePosition = function(event, element, pixelRatio) {
+    Mouse._getRelativeMousePosition = function(event, element, pixelRatio) {
         var elementBounds = element.getBoundingClientRect(),
             rootNode = (document.documentElement || document.body.parentNode || document.body),
             scrollX = (window.pageXOffset !== undefined) ? window.pageXOffset : rootNode.scrollLeft,
@@ -193,8 +193,8 @@ var Common = require('../core/Common');
         }
 
         return { 
-            x: x / (element.clientWidth / element.width * pixelRatio),
-            y: y / (element.clientHeight / element.height * pixelRatio)
+            x: x / (element.clientWidth / (element.width || element.clientWidth) * pixelRatio),
+            y: y / (element.clientHeight / (element.height || element.clientHeight) * pixelRatio)
         };
     };
 

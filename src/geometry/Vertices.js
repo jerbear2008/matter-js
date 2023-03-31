@@ -26,6 +26,8 @@ var Common = require('../core/Common');
      * The `Vertices.create` method returns a new array of vertices, which are similar to Matter.Vector objects,
      * but with some additional references required for efficient collision detection routines.
      *
+     * Vertices must be specified in clockwise order.
+     *
      * Note that the `body` argument is not optional, a `Matter.Body` reference must be provided.
      *
      * @method create
@@ -61,7 +63,7 @@ var Common = require('../core/Common');
      * @return {vertices} vertices
      */
     Vertices.fromPath = function(path, body) {
-        var pathPattern = /L?\s*([\-\d\.e]+)[\s,]*([\-\d\.e]+)*/ig,
+        var pathPattern = /L?\s*([-\d.e]+)[\s,]*([-\d.e]+)*/ig,
             points = [];
 
         path.replace(pathPattern, function(match, x, y) {
@@ -148,7 +150,7 @@ var Common = require('../core/Common');
             j;
 
         // find the polygon's moment of inertia, using second moment of area
-        // http://www.physicsforums.com/showthread.php?t=25293
+        // from equations at http://www.physicsforums.com/showthread.php?t=25293
         for (var n = 0; n < v.length; n++) {
             j = (n + 1) % v.length;
             cross = Math.abs(Vector.cross(v[j], v[n]));
@@ -167,17 +169,16 @@ var Common = require('../core/Common');
      * @param {number} scalar
      */
     Vertices.translate = function(vertices, vector, scalar) {
-        var i;
-        if (scalar) {
-            for (i = 0; i < vertices.length; i++) {
-                vertices[i].x += vector.x * scalar;
-                vertices[i].y += vector.y * scalar;
-            }
-        } else {
-            for (i = 0; i < vertices.length; i++) {
-                vertices[i].x += vector.x;
-                vertices[i].y += vector.y;
-            }
+        scalar = typeof scalar !== 'undefined' ? scalar : 1;
+
+        var verticesLength = vertices.length,
+            translateX = vector.x * scalar,
+            translateY = vector.y * scalar,
+            i;
+        
+        for (i = 0; i < verticesLength; i++) {
+            vertices[i].x += translateX;
+            vertices[i].y += translateY;
         }
 
         return vertices;
@@ -195,15 +196,21 @@ var Common = require('../core/Common');
             return;
 
         var cos = Math.cos(angle),
-            sin = Math.sin(angle);
+            sin = Math.sin(angle),
+            pointX = point.x,
+            pointY = point.y,
+            verticesLength = vertices.length,
+            vertex,
+            dx,
+            dy,
+            i;
 
-        for (var i = 0; i < vertices.length; i++) {
-            var vertice = vertices[i],
-                dx = vertice.x - point.x,
-                dy = vertice.y - point.y;
-                
-            vertice.x = point.x + (dx * cos - dy * sin);
-            vertice.y = point.y + (dx * sin + dy * cos);
+        for (i = 0; i < verticesLength; i++) {
+            vertex = vertices[i];
+            dx = vertex.x - pointX;
+            dy = vertex.y - pointY;
+            vertex.x = pointX + (dx * cos - dy * sin);
+            vertex.y = pointY + (dx * sin + dy * cos);
         }
 
         return vertices;
@@ -217,12 +224,21 @@ var Common = require('../core/Common');
      * @return {boolean} True if the vertices contains point, otherwise false
      */
     Vertices.contains = function(vertices, point) {
-        for (var i = 0; i < vertices.length; i++) {
-            var vertice = vertices[i],
-                nextVertice = vertices[(i + 1) % vertices.length];
-            if ((point.x - vertice.x) * (nextVertice.y - vertice.y) + (point.y - vertice.y) * (vertice.x - nextVertice.x) > 0) {
+        var pointX = point.x,
+            pointY = point.y,
+            verticesLength = vertices.length,
+            vertex = vertices[verticesLength - 1],
+            nextVertex;
+
+        for (var i = 0; i < verticesLength; i++) {
+            nextVertex = vertices[i];
+
+            if ((pointX - vertex.x) * (nextVertex.y - vertex.y) 
+                + (pointY - vertex.y) * (vertex.x - nextVertex.x) > 0) {
                 return false;
             }
+
+            vertex = nextVertex;
         }
 
         return true;
@@ -266,10 +282,11 @@ var Common = require('../core/Common');
      * @param {number} qualityMax
      */
     Vertices.chamfer = function(vertices, radius, quality, qualityMin, qualityMax) {
-        radius = radius || [8];
-
-        if (!radius.length)
+        if (typeof radius === 'number') {
             radius = [radius];
+        } else {
+            radius = radius || [8];
+        }
 
         // quality defaults to -1, which is auto
         quality = (typeof quality !== 'undefined') ? quality : -1;
@@ -352,6 +369,7 @@ var Common = require('../core/Common');
      */
     Vertices.isConvex = function(vertices) {
         // http://paulbourke.net/geometry/polygonmesh/
+        // Copyright (c) Paul Bourke (use permitted)
 
         var flag = 0,
             n = vertices.length,
@@ -394,7 +412,7 @@ var Common = require('../core/Common');
      * @return [vertex] vertices
      */
     Vertices.hull = function(vertices) {
-        // http://en.wikibooks.org/wiki/Algorithm_Implementation/Geometry/Convex_hull/Monotone_chain
+        // http://geomalgorithms.com/a10-_hull-1.html
 
         var upper = [],
             lower = [], 
@@ -409,7 +427,7 @@ var Common = require('../core/Common');
         });
 
         // build lower hull
-        for (i = 0; i < vertices.length; i++) {
+        for (i = 0; i < vertices.length; i += 1) {
             vertex = vertices[i];
 
             while (lower.length >= 2 
@@ -421,7 +439,7 @@ var Common = require('../core/Common');
         }
 
         // build upper hull
-        for (i = vertices.length - 1; i >= 0; i--) {
+        for (i = vertices.length - 1; i >= 0; i -= 1) {
             vertex = vertices[i];
 
             while (upper.length >= 2 

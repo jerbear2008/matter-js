@@ -1,7 +1,13 @@
 /**
+* This module has now been replaced by `Matter.Detector`.
+*
+* All usage should be migrated to `Matter.Detector` or another alternative.
+* For back-compatibility purposes this module will remain for a short term and then later removed in a future release.
+*
 * The `Matter.Grid` module contains methods for creating and manipulating collision broadphase grid structures.
 *
 * @class Grid
+* @deprecated
 */
 
 var Grid = {};
@@ -9,21 +15,20 @@ var Grid = {};
 module.exports = Grid;
 
 var Pair = require('./Pair');
-var Detector = require('./Detector');
 var Common = require('../core/Common');
+var deprecated = Common.deprecated;
 
 (function() {
 
     /**
      * Creates a new grid.
+     * @deprecated replaced by Matter.Detector
      * @method create
      * @param {} options
      * @return {grid} A new grid
      */
     Grid.create = function(options) {
         var defaults = {
-            controller: Grid,
-            detector: Detector.collisions,
             buckets: {},
             pairs: {},
             pairsList: [],
@@ -35,7 +40,24 @@ var Common = require('../core/Common');
     };
 
     /**
+     * The width of a single grid bucket.
+     *
+     * @property bucketWidth
+     * @type number
+     * @default 48
+     */
+
+    /**
+     * The height of a single grid bucket.
+     *
+     * @property bucketHeight
+     * @type number
+     * @default 48
+     */
+
+    /**
      * Updates the grid.
+     * @deprecated replaced by Matter.Detector
      * @method update
      * @param {grid} grid
      * @param {body[]} bodies
@@ -50,41 +72,32 @@ var Common = require('../core/Common');
             bucketId,
             gridChanged = false;
 
-        // @if DEBUG
-        var metrics = engine.metrics;
-        metrics.broadphaseTests = 0;
-        // @endif
-
         for (i = 0; i < bodies.length; i++) {
             var body = bodies[i];
 
             if (body.isSleeping && !forceUpdate)
                 continue;
 
-            // don't update out of world bodies
-            if (body.bounds.max.x < 0 || body.bounds.min.x > world.bounds.width
-                || body.bounds.max.y < 0 || body.bounds.min.y > world.bounds.height)
+            // temporary back compatibility bounds check
+            if (world.bounds && (body.bounds.max.x < world.bounds.min.x || body.bounds.min.x > world.bounds.max.x
+                || body.bounds.max.y < world.bounds.min.y || body.bounds.min.y > world.bounds.max.y))
                 continue;
 
-            var newRegion = _getRegion(grid, body);
+            var newRegion = Grid._getRegion(grid, body);
 
             // if the body has changed grid region
             if (!body.region || newRegion.id !== body.region.id || forceUpdate) {
 
-                // @if DEBUG
-                metrics.broadphaseTests += 1;
-                // @endif
-
                 if (!body.region || forceUpdate)
                     body.region = newRegion;
 
-                var union = _regionUnion(newRegion, body.region);
+                var union = Grid._regionUnion(newRegion, body.region);
 
                 // update grid buckets affected by region change
                 // iterate over the union of both regions
                 for (col = union.startCol; col <= union.endCol; col++) {
                     for (row = union.startRow; row <= union.endRow; row++) {
-                        bucketId = _getBucketId(col, row);
+                        bucketId = Grid._getBucketId(col, row);
                         bucket = buckets[bucketId];
 
                         var isInsideNewRegion = (col >= newRegion.startCol && col <= newRegion.endCol
@@ -97,15 +110,15 @@ var Common = require('../core/Common');
                         if (!isInsideNewRegion && isInsideOldRegion) {
                             if (isInsideOldRegion) {
                                 if (bucket)
-                                    _bucketRemoveBody(grid, bucket, body);
+                                    Grid._bucketRemoveBody(grid, bucket, body);
                             }
                         }
 
                         // add to new region buckets
                         if (body.region === newRegion || (isInsideNewRegion && !isInsideOldRegion) || forceUpdate) {
                             if (!bucket)
-                                bucket = _createBucket(buckets, bucketId);
-                            _bucketAddBody(grid, bucket, body);
+                                bucket = Grid._createBucket(buckets, bucketId);
+                            Grid._bucketAddBody(grid, bucket, body);
                         }
                     }
                 }
@@ -120,11 +133,14 @@ var Common = require('../core/Common');
 
         // update pairs list only if pairs changed (i.e. a body changed region)
         if (gridChanged)
-            grid.pairsList = _createActivePairsList(grid);
+            grid.pairsList = Grid._createActivePairsList(grid);
     };
+
+    deprecated(Grid, 'update', 'Grid.update ➤ replaced by Matter.Detector');
 
     /**
      * Clears the grid.
+     * @deprecated replaced by Matter.Detector
      * @method clear
      * @param {grid} grid
      */
@@ -134,44 +150,49 @@ var Common = require('../core/Common');
         grid.pairsList = [];
     };
 
+    deprecated(Grid, 'clear', 'Grid.clear ➤ replaced by Matter.Detector');
+
     /**
      * Finds the union of two regions.
      * @method _regionUnion
+     * @deprecated replaced by Matter.Detector
      * @private
      * @param {} regionA
      * @param {} regionB
      * @return {} region
      */
-    var _regionUnion = function(regionA, regionB) {
+    Grid._regionUnion = function(regionA, regionB) {
         var startCol = Math.min(regionA.startCol, regionB.startCol),
             endCol = Math.max(regionA.endCol, regionB.endCol),
             startRow = Math.min(regionA.startRow, regionB.startRow),
             endRow = Math.max(regionA.endRow, regionB.endRow);
 
-        return _createRegion(startCol, endCol, startRow, endRow);
+        return Grid._createRegion(startCol, endCol, startRow, endRow);
     };
 
     /**
      * Gets the region a given body falls in for a given grid.
      * @method _getRegion
+     * @deprecated replaced by Matter.Detector
      * @private
      * @param {} grid
      * @param {} body
      * @return {} region
      */
-    var _getRegion = function(grid, body) {
+    Grid._getRegion = function(grid, body) {
         var bounds = body.bounds,
             startCol = Math.floor(bounds.min.x / grid.bucketWidth),
             endCol = Math.floor(bounds.max.x / grid.bucketWidth),
             startRow = Math.floor(bounds.min.y / grid.bucketHeight),
             endRow = Math.floor(bounds.max.y / grid.bucketHeight);
 
-        return _createRegion(startCol, endCol, startRow, endRow);
+        return Grid._createRegion(startCol, endCol, startRow, endRow);
     };
 
     /**
      * Creates a region.
      * @method _createRegion
+     * @deprecated replaced by Matter.Detector
      * @private
      * @param {} startCol
      * @param {} endCol
@@ -179,7 +200,7 @@ var Common = require('../core/Common');
      * @param {} endRow
      * @return {} region
      */
-    var _createRegion = function(startCol, endCol, startRow, endRow) {
+    Grid._createRegion = function(startCol, endCol, startRow, endRow) {
         return { 
             id: startCol + ',' + endCol + ',' + startRow + ',' + endRow,
             startCol: startCol, 
@@ -192,24 +213,26 @@ var Common = require('../core/Common');
     /**
      * Gets the bucket id at the given position.
      * @method _getBucketId
+     * @deprecated replaced by Matter.Detector
      * @private
      * @param {} column
      * @param {} row
      * @return {string} bucket id
      */
-    var _getBucketId = function(column, row) {
-        return column + ',' + row;
+    Grid._getBucketId = function(column, row) {
+        return 'C' + column + 'R' + row;
     };
 
     /**
      * Creates a bucket.
      * @method _createBucket
+     * @deprecated replaced by Matter.Detector
      * @private
      * @param {} buckets
      * @param {} bucketId
      * @return {} bucket
      */
-    var _createBucket = function(buckets, bucketId) {
+    Grid._createBucket = function(buckets, bucketId) {
         var bucket = buckets[bucketId] = [];
         return bucket;
     };
@@ -217,14 +240,20 @@ var Common = require('../core/Common');
     /**
      * Adds a body to a bucket.
      * @method _bucketAddBody
+     * @deprecated replaced by Matter.Detector
      * @private
      * @param {} grid
      * @param {} bucket
      * @param {} body
      */
-    var _bucketAddBody = function(grid, bucket, body) {
+    Grid._bucketAddBody = function(grid, bucket, body) {
+        var gridPairs = grid.pairs,
+            pairId = Pair.id,
+            bucketLength = bucket.length,
+            i;
+
         // add new pairs
-        for (var i = 0; i < bucket.length; i++) {
+        for (i = 0; i < bucketLength; i++) {
             var bodyB = bucket[i];
 
             if (body.id === bodyB.id || (body.isStatic && bodyB.isStatic))
@@ -232,13 +261,13 @@ var Common = require('../core/Common');
 
             // keep track of the number of buckets the pair exists in
             // important for Grid.update to work
-            var pairId = Pair.id(body, bodyB),
-                pair = grid.pairs[pairId];
+            var id = pairId(body, bodyB),
+                pair = gridPairs[id];
 
             if (pair) {
                 pair[2] += 1;
             } else {
-                grid.pairs[pairId] = [body, bodyB, 1];
+                gridPairs[id] = [body, bodyB, 1];
             }
         }
 
@@ -249,22 +278,27 @@ var Common = require('../core/Common');
     /**
      * Removes a body from a bucket.
      * @method _bucketRemoveBody
+     * @deprecated replaced by Matter.Detector
      * @private
      * @param {} grid
      * @param {} bucket
      * @param {} body
      */
-    var _bucketRemoveBody = function(grid, bucket, body) {
+    Grid._bucketRemoveBody = function(grid, bucket, body) {
+        var gridPairs = grid.pairs,
+            pairId = Pair.id,
+            i;
+
         // remove from bucket
         bucket.splice(Common.indexOf(bucket, body), 1);
 
+        var bucketLength = bucket.length;
+
         // update pair counts
-        for (var i = 0; i < bucket.length; i++) {
+        for (i = 0; i < bucketLength; i++) {
             // keep track of the number of buckets the pair exists in
             // important for _createActivePairsList to work
-            var bodyB = bucket[i],
-                pairId = Pair.id(body, bodyB),
-                pair = grid.pairs[pairId];
+            var pair = gridPairs[pairId(body, bucket[i])];
 
             if (pair)
                 pair[2] -= 1;
@@ -274,28 +308,29 @@ var Common = require('../core/Common');
     /**
      * Generates a list of the active pairs in the grid.
      * @method _createActivePairsList
+     * @deprecated replaced by Matter.Detector
      * @private
      * @param {} grid
      * @return [] pairs
      */
-    var _createActivePairsList = function(grid) {
-        var pairKeys,
-            pair,
-            pairs = [];
-
-        // grid.pairs is used as a hashmap
-        pairKeys = Common.keys(grid.pairs);
+    Grid._createActivePairsList = function(grid) {
+        var pair,
+            gridPairs = grid.pairs,
+            pairKeys = Common.keys(gridPairs),
+            pairKeysLength = pairKeys.length,
+            pairs = [],
+            k;
 
         // iterate over grid.pairs
-        for (var k = 0; k < pairKeys.length; k++) {
-            pair = grid.pairs[pairKeys[k]];
+        for (k = 0; k < pairKeysLength; k++) {
+            pair = gridPairs[pairKeys[k]];
 
             // if pair exists in at least one bucket
             // it is a pair that needs further collision testing so push it
             if (pair[2] > 0) {
                 pairs.push(pair);
             } else {
-                delete grid.pairs[pairKeys[k]];
+                delete gridPairs[pairKeys[k]];
             }
         }
 

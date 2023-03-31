@@ -45,7 +45,7 @@ var Vector = require('../geometry/Vector');
         if (options.chamfer) {
             var chamfer = options.chamfer;
             rectangle.vertices = Vertices.chamfer(rectangle.vertices, chamfer.radius, 
-                                    chamfer.quality, chamfer.qualityMin, chamfer.qualityMax);
+                chamfer.quality, chamfer.qualityMin, chamfer.qualityMax);
             delete options.chamfer;
         }
 
@@ -54,6 +54,7 @@ var Vector = require('../geometry/Vector');
     
     /**
      * Creates a new rigid body model with a trapezoid hull. 
+     * The `slope` is parameterised as a fraction of `width` and must be < 1 to form a valid trapezoid. 
      * The options parameter is an object that specifies any properties you wish to override the defaults.
      * See the properties section of the `Matter.Body` module for detailed information on what you can pass via the `options` object.
      * @method trapezoid
@@ -61,12 +62,16 @@ var Vector = require('../geometry/Vector');
      * @param {number} y
      * @param {number} width
      * @param {number} height
-     * @param {number} slope
+     * @param {number} slope Must be a number < 1.
      * @param {object} [options]
      * @return {body} A new trapezoid body
      */
     Bodies.trapezoid = function(x, y, width, height, slope, options) {
         options = options || {};
+
+        if (slope >= 1) {
+            Common.warn('Bodies.trapezoid: slope parameter must be < 1.');
+        }
 
         slope *= 0.5;
         var roof = (1 - (slope * 2)) * width;
@@ -91,7 +96,7 @@ var Vector = require('../geometry/Vector');
         if (options.chamfer) {
             var chamfer = options.chamfer;
             trapezoid.vertices = Vertices.chamfer(trapezoid.vertices, chamfer.radius, 
-                                    chamfer.quality, chamfer.qualityMin, chamfer.qualityMax);
+                chamfer.quality, chamfer.qualityMin, chamfer.qualityMax);
             delete options.chamfer;
         }
 
@@ -112,10 +117,13 @@ var Vector = require('../geometry/Vector');
      */
     Bodies.circle = function(x, y, radius, options, maxSides) {
         options = options || {};
-        options.label = 'Circle Body';
+
+        var circle = {
+            label: 'Circle Body',
+            circleRadius: radius
+        };
         
         // approximate circles with polygons until true circles implemented in SAT
-
         maxSides = maxSides || 25;
         var sides = Math.ceil(Math.max(10, Math.min(maxSides, radius)));
 
@@ -123,10 +131,7 @@ var Vector = require('../geometry/Vector');
         if (sides % 2 === 1)
             sides += 1;
 
-        // flag for better rendering
-        options.circleRadius = radius;
-
-        return Bodies.polygon(x, y, sides, radius, options);
+        return Bodies.polygon(x, y, sides, radius, Common.extend({}, circle, options));
     };
 
     /**
@@ -168,7 +173,7 @@ var Vector = require('../geometry/Vector');
         if (options.chamfer) {
             var chamfer = options.chamfer;
             polygon.vertices = Vertices.chamfer(polygon.vertices, chamfer.radius, 
-                                    chamfer.quality, chamfer.qualityMin, chamfer.qualityMax);
+                chamfer.quality, chamfer.qualityMin, chamfer.qualityMax);
             delete options.chamfer;
         }
 
@@ -176,29 +181,46 @@ var Vector = require('../geometry/Vector');
     };
 
     /**
-     * Creates a body using the supplied vertices (or an array containing multiple sets of vertices).
-     * If the vertices are convex, they will pass through as supplied.
-     * Otherwise if the vertices are concave, they will be decomposed if [poly-decomp.js](https://github.com/schteppe/poly-decomp.js) is available.
-     * Note that this process is not guaranteed to support complex sets of vertices (e.g. those with holes may fail).
-     * By default the decomposition will discard collinear edges (to improve performance).
-     * It can also optionally discard any parts that have an area less than `minimumArea`.
-     * If the vertices can not be decomposed, the result will fall back to using the convex hull.
-     * The options parameter is an object that specifies any `Matter.Body` properties you wish to override the defaults.
+     * Utility to create a compound body based on set(s) of vertices.
+     * 
+     * _Note:_ To optionally enable automatic concave vertices decomposition the [poly-decomp](https://github.com/schteppe/poly-decomp.js) 
+     * package must be first installed and provided see `Common.setDecomp`, otherwise the convex hull of each vertex set will be used.
+     * 
+     * The resulting vertices are reorientated about their centre of mass,
+     * and offset such that `body.position` corresponds to this point.
+     * 
+     * The resulting offset may be found if needed by subtracting `body.bounds` from the original input bounds.
+     * To later move the centre of mass see `Body.setCentre`.
+     * 
+     * Note that automatic conconcave decomposition results are not always optimal. 
+     * For best results, simplify the input vertices as much as possible first.
+     * By default this function applies some addtional simplification to help.
+     * 
+     * Some outputs may also require further manual processing afterwards to be robust.
+     * In particular some parts may need to be overlapped to avoid collision gaps.
+     * Thin parts and sharp points should be avoided or removed where possible.
+     *
+     * The options parameter object specifies any `Matter.Body` properties you wish to override the defaults.
+     * 
      * See the properties section of the `Matter.Body` module for detailed information on what you can pass via the `options` object.
      * @method fromVertices
      * @param {number} x
      * @param {number} y
-     * @param [[vector]] vertexSets
-     * @param {object} [options]
-     * @param {bool} [flagInternal=false]
-     * @param {number} [removeCollinear=0.01]
-     * @param {number} [minimumArea=10]
+     * @param {array} vertexSets One or more arrays of vertex points e.g. `[[{ x: 0, y: 0 }...], ...]`.
+     * @param {object} [options] The body options.
+     * @param {bool} [flagInternal=false] Optionally marks internal edges with `isInternal`.
+     * @param {number} [removeCollinear=0.01] Threshold when simplifying vertices along the same edge.
+     * @param {number} [minimumArea=10] Threshold when removing small parts.
+     * @param {number} [removeDuplicatePoints=0.01] Threshold when simplifying nearby vertices.
      * @return {body}
      */
-    Bodies.fromVertices = function(x, y, vertexSets, options, flagInternal, removeCollinear, minimumArea) {
-        var body,
+    Bodies.fromVertices = function(x, y, vertexSets, options, flagInternal, removeCollinear, minimumArea, removeDuplicatePoints) {
+        var decomp = Common.getDecomp(),
+            canDecomp,
+            body,
             parts,
             isConvex,
+            isConcave,
             vertices,
             i,
             j,
@@ -206,16 +228,16 @@ var Vector = require('../geometry/Vector');
             v,
             z;
 
+        // check decomp is as expected
+        canDecomp = Boolean(decomp && decomp.quickDecomp);
+
         options = options || {};
         parts = [];
 
         flagInternal = typeof flagInternal !== 'undefined' ? flagInternal : false;
         removeCollinear = typeof removeCollinear !== 'undefined' ? removeCollinear : 0.01;
         minimumArea = typeof minimumArea !== 'undefined' ? minimumArea : 10;
-
-        if (!window.decomp) {
-            Common.log('Bodies.fromVertices: poly-decomp.js required. Could not decompose vertices. Fallback to convex hull.', 'warn');
-        }
+        removeDuplicatePoints = typeof removeDuplicatePoints !== 'undefined' ? removeDuplicatePoints : 0.01;
 
         // ensure vertexSets is an array of arrays
         if (!Common.isArray(vertexSets[0])) {
@@ -225,8 +247,15 @@ var Vector = require('../geometry/Vector');
         for (v = 0; v < vertexSets.length; v += 1) {
             vertices = vertexSets[v];
             isConvex = Vertices.isConvex(vertices);
+            isConcave = !isConvex;
 
-            if (isConvex || !window.decomp) {
+            if (isConcave && !canDecomp) {
+                Common.warnOnce(
+                    'Bodies.fromVertices: Install the \'poly-decomp\' library and use Common.setDecomp or provide \'decomp\' as a global to decompose concave vertices.'
+                );
+            }
+
+            if (isConvex || !canDecomp) {
                 if (isConvex) {
                     vertices = Vertices.clockwiseSort(vertices);
                 } else {
@@ -240,28 +269,31 @@ var Vector = require('../geometry/Vector');
                 });
             } else {
                 // initialise a decomposition
-                var concave = new decomp.Polygon();
-                for (i = 0; i < vertices.length; i++) {
-                    concave.vertices.push([vertices[i].x, vertices[i].y]);
-                }
+                var concave = vertices.map(function(vertex) {
+                    return [vertex.x, vertex.y];
+                });
 
                 // vertices are concave and simple, we can decompose into parts
-                concave.makeCCW();
+                decomp.makeCCW(concave);
                 if (removeCollinear !== false)
-                    concave.removeCollinearPoints(removeCollinear);
+                    decomp.removeCollinearPoints(concave, removeCollinear);
+                if (removeDuplicatePoints !== false && decomp.removeDuplicatePoints)
+                    decomp.removeDuplicatePoints(concave, removeDuplicatePoints);
 
                 // use the quick decomposition algorithm (Bayazit)
-                var decomposed = concave.quickDecomp();
+                var decomposed = decomp.quickDecomp(concave);
 
                 // for each decomposed chunk
                 for (i = 0; i < decomposed.length; i++) {
-                    var chunk = decomposed[i],
-                        chunkVertices = [];
+                    var chunk = decomposed[i];
 
                     // convert vertices into the correct structure
-                    for (j = 0; j < chunk.vertices.length; j++) {
-                        chunkVertices.push({ x: chunk.vertices[j][0], y: chunk.vertices[j][1] });
-                    }
+                    var chunkVertices = chunk.map(function(vertices) {
+                        return {
+                            x: vertices[0],
+                            y: vertices[1]
+                        };
+                    });
 
                     // skip small chunks
                     if (minimumArea > 0 && Vertices.area(chunkVertices) < minimumArea)
@@ -318,6 +350,8 @@ var Vector = require('../geometry/Vector');
         if (parts.length > 1) {
             // create the parent body to be returned, that contains generated compound parts
             body = Body.create(Common.extend({ parts: parts.slice(0) }, options));
+
+            // offset such that body.position is at the centre off mass
             Body.setPosition(body, { x: x, y: y });
 
             return body;

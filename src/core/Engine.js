@@ -12,13 +12,10 @@ var Engine = {};
 
 module.exports = Engine;
 
-var World = require('../body/World');
 var Sleeping = require('./Sleeping');
 var Resolver = require('../collision/Resolver');
-var Render = require('../render/Render');
+var Detector = require('../collision/Detector');
 var Pairs = require('../collision/Pairs');
-var Metrics = require('./Metrics');
-var Grid = require('../collision/Grid');
 var Events = require('./Events');
 var Composite = require('../body/Composite');
 var Constraint = require('../constraint/Constraint');
@@ -32,15 +29,11 @@ var Body = require('../body/Body');
      * All properties have default values, and many are pre-calculated automatically based on other properties.
      * See the properties section below for detailed information on what you can pass via the `options` object.
      * @method create
-     * @param {HTMLElement} element
      * @param {object} [options]
      * @return {engine} engine
      */
-    Engine.create = function(element, options) {
-
-        // options may be passed as the first (and only) argument
-        options = Common.isElement(element) ? options : element;
-        element = Common.isElement(element) ? element : null;
+    Engine.create = function(options) {
+        options = options || {};
 
         var defaults = {
             positionIterations: 6,
@@ -48,167 +41,171 @@ var Body = require('../body/Body');
             constraintIterations: 2,
             enableSleeping: false,
             events: [],
+            plugin: {},
+            gravity: {
+                x: 0,
+                y: 1,
+                scale: 0.001
+            },
             timing: {
                 timestamp: 0,
-                timeScale: 1
-            },
-            broadphase: {
-                controller: Grid
+                timeScale: 1,
+                lastDelta: 0,
+                lastElapsed: 0
             }
         };
 
         var engine = Common.extend(defaults, options);
 
-        if (element || engine.render) {
-            var renderDefaults = {
-                element: element,
-                controller: Render
-            };
-            
-            engine.render = Common.extend(renderDefaults, engine.render);
-        }
+        engine.world = options.world || Composite.create({ label: 'World' });
+        engine.pairs = options.pairs || Pairs.create();
+        engine.detector = options.detector || Detector.create();
 
-        if (engine.render && engine.render.controller) {
-            engine.render = engine.render.controller.create(engine.render);
-        }
-
-        engine.world = World.create(engine.world);
-        engine.pairs = Pairs.create();
-        engine.broadphase = engine.broadphase.controller.create(engine.broadphase);
-        engine.metrics = engine.metrics || { extended: false };
-
-        // @if DEBUG
-        engine.metrics = Metrics.create(engine.metrics);
-        // @endif
-
+        // for temporary back compatibility only
+        engine.grid = { buckets: [] };
+        engine.world.gravity = engine.gravity;
+        engine.broadphase = engine.grid;
+        engine.metrics = {};
+        
         return engine;
     };
 
     /**
-     * Moves the simulation forward in time by `delta` ms.
-     * The `correction` argument is an optional `Number` that specifies the time correction factor to apply to the update.
-     * This can help improve the accuracy of the simulation in cases where `delta` is changing between updates.
-     * The value of `correction` is defined as `delta / lastDelta`, i.e. the percentage change of `delta` over the last step.
-     * Therefore the value is always `1` (no correction) when `delta` constant (or when no correction is desired, which is the default).
-     * See the paper on <a href="http://lonesock.net/article/verlet.html">Time Corrected Verlet</a> for more information.
-     *
-     * Triggers `beforeUpdate` and `afterUpdate` events.
+     * Moves the simulation forward in time by `delta` milliseconds.
+     * Triggers `beforeUpdate`, `beforeSolve` and `afterUpdate` events.
      * Triggers `collisionStart`, `collisionActive` and `collisionEnd` events.
      * @method update
      * @param {engine} engine
-     * @param {number} delta
-     * @param {number} [correction]
+     * @param {number} [delta=16.666]
      */
-    Engine.update = function(engine, delta, correction) {
-        correction = (typeof correction !== 'undefined') ? correction : 1;
+    Engine.update = function(engine, delta) {
+        var startTime = Common.now();
 
         var world = engine.world,
+            detector = engine.detector,
+            pairs = engine.pairs,
             timing = engine.timing,
-            broadphase = engine.broadphase,
-            broadphasePairs = [],
+            timestamp = timing.timestamp,
             i;
 
+        delta = typeof delta !== 'undefined' ? delta : Common._baseDelta;
+        delta *= timing.timeScale;
+
         // increment timestamp
-        timing.timestamp += delta * timing.timeScale;
+        timing.timestamp += delta;
+        timing.lastDelta = delta;
 
         // create an event object
         var event = {
-            timestamp: timing.timestamp
+            timestamp: timing.timestamp,
+            delta: delta
         };
 
         Events.trigger(engine, 'beforeUpdate', event);
 
-        // get lists of all bodies and constraints, no matter what composites they are in
+        // get all bodies and all constraints in the world
         var allBodies = Composite.allBodies(world),
             allConstraints = Composite.allConstraints(world);
 
-        // @if DEBUG
-        // reset metrics logging
-        Metrics.reset(engine.metrics);
-        // @endif
+        // if the world has changed
+        if (world.isModified) {
+            // update the detector bodies
+            Detector.setBodies(detector, allBodies);
 
-        // if sleeping enabled, call the sleeping controller
+            // reset all composite modified flags
+            Composite.setModified(world, false, false, true);
+        }
+
+        // update sleeping if enabled
         if (engine.enableSleeping)
-            Sleeping.update(allBodies, timing.timeScale);
+            Sleeping.update(allBodies, delta);
 
-        // applies gravity to all bodies
-        _bodiesApplyGravity(allBodies, world.gravity);
+        // apply gravity to all bodies
+        Engine._bodiesApplyGravity(allBodies, engine.gravity);
 
         // update all body position and rotation by integration
-        _bodiesUpdate(allBodies, delta, timing.timeScale, correction, world.bounds);
+        if (delta > 0) {
+            Engine._bodiesUpdate(allBodies, delta);
+        }
 
-        // update all constraints
+        Events.trigger(engine, 'beforeSolve', event);
+
+        // update all constraints (first pass)
+        Constraint.preSolveAll(allBodies);
         for (i = 0; i < engine.constraintIterations; i++) {
-            Constraint.solveAll(allConstraints, timing.timeScale);
+            Constraint.solveAll(allConstraints, delta);
         }
         Constraint.postSolveAll(allBodies);
 
-        // broadphase pass: find potential collision pairs
-        if (broadphase.controller) {
-
-            // if world is dirty, we must flush the whole grid
-            if (world.isModified)
-                broadphase.controller.clear(broadphase);
-
-            // update the grid buckets based on current bodies
-            broadphase.controller.update(broadphase, allBodies, engine, world.isModified);
-            broadphasePairs = broadphase.pairsList;
-        } else {
-
-            // if no broadphase set, we just pass all bodies
-            broadphasePairs = allBodies;
-        }
-
-        // narrowphase pass: find actual collisions, then create or update collision pairs
-        var collisions = broadphase.detector(broadphasePairs, engine);
+        // find all collisions
+        detector.pairs = engine.pairs;
+        var collisions = Detector.collisions(detector);
 
         // update collision pairs
-        var pairs = engine.pairs,
-            timestamp = timing.timestamp;
         Pairs.update(pairs, collisions, timestamp);
-        Pairs.removeOld(pairs, timestamp);
 
         // wake up bodies involved in collisions
         if (engine.enableSleeping)
-            Sleeping.afterCollisions(pairs.list, timing.timeScale);
+            Sleeping.afterCollisions(pairs.list);
 
         // trigger collision events
-        if (pairs.collisionStart.length > 0)
-            Events.trigger(engine, 'collisionStart', { pairs: pairs.collisionStart });
+        if (pairs.collisionStart.length > 0) {
+            Events.trigger(engine, 'collisionStart', { 
+                pairs: pairs.collisionStart,
+                timestamp: timing.timestamp,
+                delta: delta
+            });
+        }
 
         // iteratively resolve position between collisions
+        var positionDamping = Common.clamp(20 / engine.positionIterations, 0, 1);
+        
         Resolver.preSolvePosition(pairs.list);
         for (i = 0; i < engine.positionIterations; i++) {
-            Resolver.solvePosition(pairs.list, timing.timeScale);
+            Resolver.solvePosition(pairs.list, delta, positionDamping);
         }
         Resolver.postSolvePosition(allBodies);
+
+        // update all constraints (second pass)
+        Constraint.preSolveAll(allBodies);
+        for (i = 0; i < engine.constraintIterations; i++) {
+            Constraint.solveAll(allConstraints, delta);
+        }
+        Constraint.postSolveAll(allBodies);
 
         // iteratively resolve velocity between collisions
         Resolver.preSolveVelocity(pairs.list);
         for (i = 0; i < engine.velocityIterations; i++) {
-            Resolver.solveVelocity(pairs.list, timing.timeScale);
+            Resolver.solveVelocity(pairs.list, delta);
         }
 
+        // update body speed and velocity properties
+        Engine._bodiesUpdateVelocities(allBodies);
+
         // trigger collision events
-        if (pairs.collisionActive.length > 0)
-            Events.trigger(engine, 'collisionActive', { pairs: pairs.collisionActive });
+        if (pairs.collisionActive.length > 0) {
+            Events.trigger(engine, 'collisionActive', { 
+                pairs: pairs.collisionActive, 
+                timestamp: timing.timestamp,
+                delta: delta
+            });
+        }
 
-        if (pairs.collisionEnd.length > 0)
-            Events.trigger(engine, 'collisionEnd', { pairs: pairs.collisionEnd });
-
-        // @if DEBUG
-        // update metrics log
-        Metrics.update(engine.metrics, engine);
-        // @endif
+        if (pairs.collisionEnd.length > 0) {
+            Events.trigger(engine, 'collisionEnd', {
+                pairs: pairs.collisionEnd,
+                timestamp: timing.timestamp,
+                delta: delta
+            });
+        }
 
         // clear force buffers
-        _bodiesClearForces(allBodies);
-
-        // clear all composite modified flags
-        if (world.isModified)
-            Composite.setModified(world, false, false, true);
+        Engine._bodiesClearForces(allBodies);
 
         Events.trigger(engine, 'afterUpdate', event);
+
+        // log the time elapsed computing this update
+        engine.timing.lastElapsed = Common.now() - startTime;
 
         return engine;
     };
@@ -238,31 +235,25 @@ var Body = require('../body/Body');
     };
 
     /**
-     * Clears the engine including the world, pairs and broadphase.
+     * Clears the engine pairs and detector.
      * @method clear
      * @param {engine} engine
      */
     Engine.clear = function(engine) {
-        var world = engine.world;
-        
         Pairs.clear(engine.pairs);
-
-        var broadphase = engine.broadphase;
-        if (broadphase.controller) {
-            var bodies = Composite.allBodies(world);
-            broadphase.controller.clear(broadphase);
-            broadphase.controller.update(broadphase, bodies, engine, true);
-        }
+        Detector.clear(engine.detector);
     };
 
     /**
      * Zeroes the `body.force` and `body.torque` force buffers.
-     * @method bodiesClearForces
+     * @method _bodiesClearForces
      * @private
      * @param {body[]} bodies
      */
-    var _bodiesClearForces = function(bodies) {
-        for (var i = 0; i < bodies.length; i++) {
+    Engine._bodiesClearForces = function(bodies) {
+        var bodiesLength = bodies.length;
+
+        for (var i = 0; i < bodiesLength; i++) {
             var body = bodies[i];
 
             // reset force buffers
@@ -273,56 +264,71 @@ var Body = require('../body/Body');
     };
 
     /**
-     * Applys a mass dependant force to all given bodies.
-     * @method bodiesApplyGravity
+     * Applies gravitational acceleration to all `bodies`.
+     * This models a [uniform gravitational field](https://en.wikipedia.org/wiki/Gravity_of_Earth), similar to near the surface of a planet.
+     * 
+     * @method _bodiesApplyGravity
      * @private
      * @param {body[]} bodies
      * @param {vector} gravity
      */
-    var _bodiesApplyGravity = function(bodies, gravity) {
-        var gravityScale = typeof gravity.scale !== 'undefined' ? gravity.scale : 0.001;
+    Engine._bodiesApplyGravity = function(bodies, gravity) {
+        var gravityScale = typeof gravity.scale !== 'undefined' ? gravity.scale : 0.001,
+            bodiesLength = bodies.length;
 
         if ((gravity.x === 0 && gravity.y === 0) || gravityScale === 0) {
             return;
         }
         
-        for (var i = 0; i < bodies.length; i++) {
+        for (var i = 0; i < bodiesLength; i++) {
             var body = bodies[i];
 
             if (body.isStatic || body.isSleeping)
                 continue;
 
-            // apply gravity
+            // add the resultant force of gravity
             body.force.y += body.mass * gravity.y * gravityScale;
             body.force.x += body.mass * gravity.x * gravityScale;
         }
     };
 
     /**
-     * Applys `Body.update` to all given `bodies`.
-     * @method updateAll
+     * Applies `Body.update` to all given `bodies`.
+     * @method _bodiesUpdate
      * @private
      * @param {body[]} bodies
-     * @param {number} deltaTime 
-     * The amount of time elapsed between updates
-     * @param {number} timeScale
-     * @param {number} correction 
-     * The Verlet correction factor (deltaTime / lastDeltaTime)
-     * @param {bounds} worldBounds
+     * @param {number} delta The amount of time elapsed between updates
      */
-    var _bodiesUpdate = function(bodies, deltaTime, timeScale, correction, worldBounds) {
-        for (var i = 0; i < bodies.length; i++) {
+    Engine._bodiesUpdate = function(bodies, delta) {
+        var bodiesLength = bodies.length;
+
+        for (var i = 0; i < bodiesLength; i++) {
             var body = bodies[i];
 
             if (body.isStatic || body.isSleeping)
                 continue;
 
-            Body.update(body, deltaTime, timeScale, correction);
+            Body.update(body, delta);
         }
     };
 
     /**
-     * An alias for `Runner.run`, see `Matter.Runner` for more information.
+     * Applies `Body.updateVelocities` to all given `bodies`.
+     * @method _bodiesUpdateVelocities
+     * @private
+     * @param {body[]} bodies
+     */
+    Engine._bodiesUpdateVelocities = function(bodies) {
+        var bodiesLength = bodies.length;
+
+        for (var i = 0; i < bodiesLength; i++) {
+            Body.updateVelocities(bodies[i]);
+        }
+    };
+
+    /**
+     * A deprecated alias for `Runner.run`, use `Matter.Runner.run(engine)` instead and see `Matter.Runner` for more information.
+     * @deprecated use Matter.Runner.run(engine) instead
      * @method run
      * @param {engine} engine
      */
@@ -331,53 +337,69 @@ var Body = require('../body/Body');
     * Fired just before an update
     *
     * @event beforeUpdate
-    * @param {} event An event object
+    * @param {object} event An event object
     * @param {number} event.timestamp The engine.timing.timestamp of the event
-    * @param {} event.source The source object of the event
-    * @param {} event.name The name of the event
+    * @param {number} event.delta The delta time in milliseconds value used in the update
+    * @param {engine} event.source The source object of the event
+    * @param {string} event.name The name of the event
+    */
+
+    /**
+    * Fired after bodies updated based on their velocity and forces, but before any collision detection, constraints and resolving etc.
+    *
+    * @event beforeSolve
+    * @param {object} event An event object
+    * @param {number} event.timestamp The engine.timing.timestamp of the event
+    * @param {number} event.delta The delta time in milliseconds value used in the update
+    * @param {engine} event.source The source object of the event
+    * @param {string} event.name The name of the event
     */
 
     /**
     * Fired after engine update and all collision events
     *
     * @event afterUpdate
-    * @param {} event An event object
+    * @param {object} event An event object
     * @param {number} event.timestamp The engine.timing.timestamp of the event
-    * @param {} event.source The source object of the event
-    * @param {} event.name The name of the event
+    * @param {number} event.delta The delta time in milliseconds value used in the update
+    * @param {engine} event.source The source object of the event
+    * @param {string} event.name The name of the event
     */
 
     /**
     * Fired after engine update, provides a list of all pairs that have started to collide in the current tick (if any)
     *
     * @event collisionStart
-    * @param {} event An event object
-    * @param {} event.pairs List of affected pairs
+    * @param {object} event An event object
+    * @param {pair[]} event.pairs List of affected pairs
     * @param {number} event.timestamp The engine.timing.timestamp of the event
-    * @param {} event.source The source object of the event
-    * @param {} event.name The name of the event
+    * @param {number} event.delta The delta time in milliseconds value used in the update
+    * @param {engine} event.source The source object of the event
+    * @param {string} event.name The name of the event
     */
 
     /**
     * Fired after engine update, provides a list of all pairs that are colliding in the current tick (if any)
     *
     * @event collisionActive
-    * @param {} event An event object
-    * @param {} event.pairs List of affected pairs
+    * @param {object} event An event object
+    * @param {pair[]} event.pairs List of affected pairs
     * @param {number} event.timestamp The engine.timing.timestamp of the event
-    * @param {} event.source The source object of the event
-    * @param {} event.name The name of the event
+    * @param {number} event.delta The delta time in milliseconds value used in the update
+    * @param {engine} event.source The source object of the event
+    * @param {string} event.name The name of the event
     */
 
     /**
     * Fired after engine update, provides a list of all pairs that have ended collision in the current tick (if any)
     *
     * @event collisionEnd
-    * @param {} event An event object
-    * @param {} event.pairs List of affected pairs
+    * @param {object} event An event object
+    * @param {pair[]} event.pairs List of affected pairs
     * @param {number} event.timestamp The engine.timing.timestamp of the event
-    * @param {} event.source The source object of the event
-    * @param {} event.name The name of the event
+    * @param {number} event.delta The delta time in milliseconds value used in the update
+    * @param {engine} event.source The source object of the event
+    * @param {string} event.name The name of the event
     */
 
     /*
@@ -444,38 +466,108 @@ var Body = require('../body/Body');
     /**
      * A `Number` that specifies the current simulation-time in milliseconds starting from `0`. 
      * It is incremented on every `Engine.update` by the given `delta` argument. 
-     *
+     * 
      * @property timing.timestamp
      * @type number
      * @default 0
      */
 
     /**
-     * An instance of a `Render` controller. The default value is a `Matter.Render` instance created by `Engine.create`.
-     * One may also develop a custom renderer module based on `Matter.Render` and pass an instance of it to `Engine.create` via `options.render`.
+     * A `Number` that represents the total execution time elapsed during the last `Engine.update` in milliseconds.
+     * It is updated by timing from the start of the last `Engine.update` call until it ends.
      *
-     * A minimal custom renderer object must define at least three functions: `create`, `clear` and `world` (see `Matter.Render`).
-     * It is also possible to instead pass the _module_ reference via `options.render.controller` and `Engine.create` will instantiate one for you.
-     *
-     * @property render
-     * @type render
-     * @default a Matter.Render instance
+     * This value will also include the total execution time of all event handlers directly or indirectly triggered by the engine update.
+     * 
+     * @property timing.lastElapsed
+     * @type number
+     * @default 0
      */
 
     /**
-     * An instance of a broadphase controller. The default value is a `Matter.Grid` instance created by `Engine.create`.
+     * A `Number` that represents the `delta` value used in the last engine update.
+     * 
+     * @property timing.lastDelta
+     * @type number
+     * @default 0
+     */
+
+    /**
+     * A `Matter.Detector` instance.
      *
+     * @property detector
+     * @type detector
+     * @default a Matter.Detector instance
+     */
+
+    /**
+     * A `Matter.Grid` instance.
+     *
+     * @deprecated replaced by `engine.detector`
+     * @property grid
+     * @type grid
+     * @default a Matter.Grid instance
+     */
+
+    /**
+     * Replaced by and now alias for `engine.grid`.
+     *
+     * @deprecated replaced by `engine.detector`
      * @property broadphase
      * @type grid
      * @default a Matter.Grid instance
      */
 
     /**
-     * A `World` composite object that will contain all simulated bodies and constraints.
+     * The root `Matter.Composite` instance that will contain all bodies, constraints and other composites to be simulated by this engine.
      *
      * @property world
-     * @type world
-     * @default a Matter.World instance
+     * @type composite
+     * @default a Matter.Composite instance
+     */
+
+    /**
+     * An object reserved for storing plugin-specific properties.
+     *
+     * @property plugin
+     * @type {}
+     */
+
+    /**
+     * An optional gravitational acceleration applied to all bodies in `engine.world` on every update.
+     * 
+     * This models a [uniform gravitational field](https://en.wikipedia.org/wiki/Gravity_of_Earth), similar to near the surface of a planet. For gravity in other contexts, disable this and apply forces as needed.
+     * 
+     * To disable set the `scale` component to `0`.
+     * 
+     * This is split into three components for ease of use:  
+     * a normalised direction (`x` and `y`) and magnitude (`scale`).
+     *
+     * @property gravity
+     * @type object
+     */
+
+    /**
+     * The gravitational direction normal `x` component, to be multiplied by `gravity.scale`.
+     * 
+     * @property gravity.x
+     * @type object
+     * @default 0
+     */
+
+    /**
+     * The gravitational direction normal `y` component, to be multiplied by `gravity.scale`.
+     *
+     * @property gravity.y
+     * @type object
+     * @default 1
+     */
+
+    /**
+     * The magnitude of the gravitational acceleration.
+     * 
+     * @property gravity.scale
+     * @type object
+     * @default 0.001
      */
 
 })();
